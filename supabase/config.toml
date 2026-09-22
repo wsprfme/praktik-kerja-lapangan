@@ -1,0 +1,4 @@
+project_id = "pkl-management"
+
+[functions.admin-users]
+verify_jwt = true
