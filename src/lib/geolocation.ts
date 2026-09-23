@@ -8,7 +8,7 @@ export interface Geopoint {
 
 const GEO_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 15000,
+  timeout: 20000,
   maximumAge: 0,
 }
 
@@ -28,15 +28,41 @@ export function getCurrentPosition(options: PositionOptions = GEO_OPTIONS): Prom
       reject(new Error("Perangkat tidak mendukung layanan lokasi."))
       return
     }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve(toGeopoint(position)),
-      (error) => {
-        const message =
-          error.code === error.PERMISSION_DENIED
-            ? "Izin lokasi ditolak."
-            : "Lokasi belum dapat dibaca. Pastikan GPS aktif."
-        reject(new Error(message))
+    let resolved = false
+    const attempts: GeolocationPosition[] = []
+
+    const timer = setTimeout(() => {
+      if (resolved) return
+      resolved = true
+      if (attempts.length > 0) {
+        attempts.sort((a, b) => a.coords.accuracy - b.coords.accuracy)
+        resolve(toGeopoint(attempts[0]))
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(toGeopoint(pos)),
+          (err) => {
+            const message =
+              err.code === err.PERMISSION_DENIED
+                ? "Izin lokasi ditolak."
+                : "Lokasi belum dapat dibaca. Pastikan GPS aktif."
+            reject(new Error(message))
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+        )
+      }
+    }, 4000)
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        attempts.push(pos)
+        if (pos.coords.accuracy <= 30 && !resolved) {
+          resolved = true
+          clearTimeout(timer)
+          navigator.geolocation.clearWatch(watchId)
+          resolve(toGeopoint(pos))
+        }
       },
+      () => {},
       options,
     )
   })

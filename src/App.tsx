@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider, useAuth } from "@/components/auth-provider"
+import { ForcePasswordDialog } from "@/components/force-password-dialog"
 import { AuthGate, FullPageLoader, RoleGate } from "@/components/guards"
 import { RoleLayout } from "@/components/role-layout"
 import { SiswaShell } from "@/components/siswa-shell"
@@ -23,6 +24,7 @@ import { PembimbingJournalsPage } from "@/pages/pembimbing/journals-page"
 import { PembimbingLeavePage } from "@/pages/pembimbing/leave-page"
 import { PembimbingScoresPage } from "@/pages/pembimbing/scores-page"
 import { PembimbingStudentsPage } from "@/pages/pembimbing/students-page"
+import { PembimbingReportsPage } from "@/pages/pembimbing/reports-page"
 import { SiswaAttendancePage } from "@/pages/siswa/attendance-page"
 import { SiswaDashboard } from "@/pages/siswa/dashboard"
 import { SiswaJournalsPage } from "@/pages/siswa/journals-page"
@@ -86,6 +88,7 @@ export function App() {
             <Route path="jurnal" element={<PembimbingJournalsPage />} />
             <Route path="pengajuan" element={<PembimbingLeavePage />} />
             <Route path="penilaian" element={<PembimbingScoresPage />} />
+            <Route path="rekap" element={<PembimbingReportsPage />} />
             <Route path="pengumuman" element={<AnnouncementsPage />} />
             <Route path="profil" element={<ProfilePage />} />
           </Route>
@@ -112,6 +115,7 @@ export function App() {
           <Route path="*" element={<RootRedirect />} />
         </Routes>
         <Toaster position="top-right" />
+        <ForcePasswordDialog />
       </AuthProvider>
     </BrowserRouter>
   )

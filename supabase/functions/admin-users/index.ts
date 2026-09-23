@@ -16,7 +16,7 @@ function json(body: unknown, status = 200) {
 type Role = "admin" | "pembimbing" | "siswa";
 
 interface Payload {
-  action: "create" | "update" | "reset_password" | "set_active";
+  action: "create" | "create_with_placement" | "update" | "reset_password" | "set_active";
   user_id?: string;
   role?: Role;
   email?: string;
@@ -27,9 +27,14 @@ interface Payload {
   nip?: string | null;
   department?: string | null;
   nis?: string | null;
+  nisn?: string | null;
   class_name?: string | null;
   major?: string | null;
   is_active?: boolean;
+  company_id?: string;
+  period_id?: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 const PASSWORD_HINT =
@@ -60,7 +65,7 @@ function friendlyAuthError(message: string): string {
 
 const EXTRA_TABLES: Record<string, { table: string; columns: string[] }> = {
   pembimbing: { table: "pembimbing_profiles", columns: ["nip", "department"] },
-  siswa: { table: "siswa_profiles", columns: ["nis", "class_name", "major"] },
+  siswa: { table: "siswa_profiles", columns: ["nis", "nisn", "class_name", "major"] },
 };
 
 function pickExtra(role: Role, payload: Payload) {
@@ -110,20 +115,31 @@ Deno.serve(async (req: Request) => {
       .eq("id", callerData.user.id)
       .maybeSingle();
 
-    if (!callerProfile || callerProfile.role !== "admin" || !callerProfile.is_active) {
-      return json({ error: "Hanya Admin yang dapat mengelola akun." }, 403);
+    const isAdmin = callerProfile?.role === "admin";
+    const isPembimbing = callerProfile?.role === "pembimbing";
+    if (!callerProfile || (!isAdmin && !isPembimbing) || !callerProfile.is_active) {
+      return json({ error: "Anda tidak memiliki akses untuk mengelola akun." }, 403);
     }
 
     const payload = (await req.json()) as Payload;
 
-    if (payload.action === "create") {
-      const role = payload.role;
+    if (payload.action === "create" || payload.action === "create_with_placement") {
+      // create_with_placement is pembimbing-only
+      if (payload.action === "create_with_placement" && !isPembimbing) {
+        return json({ error: "Hanya Pembimbing yang dapat membuat akun dengan penempatan." }, 403);
+      }
+
+      // Pembimbing can only create siswa accounts
+      const role: Role = isPembimbing ? "siswa" : (payload.role as Role);
       const email = payload.email?.trim().toLowerCase();
       const password = payload.password;
       const fullName = payload.full_name?.trim();
 
       if (!role || !["pembimbing", "siswa"].includes(role)) {
         return json({ error: "Peran akun tidak valid." }, 400);
+      }
+      if (isPembimbing && role !== "siswa") {
+        return json({ error: "Pembimbing hanya dapat membuat akun siswa." }, 400);
       }
       if (!email || !password || !fullName) {
         return json({ error: "Nama, email, dan kata sandi wajib diisi." }, 400);
@@ -158,7 +174,7 @@ Deno.serve(async (req: Request) => {
 
       const userId = created.user.id;
 
-      const { error: profileError } = await admin.from("profiles").insert({
+      const profileInsert: Record<string, unknown> = {
         id: userId,
         role,
         full_name: fullName,
@@ -166,7 +182,12 @@ Deno.serve(async (req: Request) => {
         phone: payload.phone ?? null,
         address: payload.address ?? null,
         is_active: true,
-      });
+      };
+      if (role === "siswa") {
+        profileInsert.must_change_password = true;
+      }
+
+      const { error: profileError } = await admin.from("profiles").insert(profileInsert);
       if (profileError) {
         await admin.auth.admin.deleteUser(userId);
         return json({ error: profileError.message }, 400);
@@ -180,7 +201,36 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // Handle placement creation for create_with_placement
+      if (payload.action === "create_with_placement") {
+        let warning: string | undefined;
+        try {
+          const { error: placementError } = await admin.from("placements").insert({
+            student_id: userId,
+            supervisor_id: callerProfile.id,
+            company_id: payload.company_id,
+            period_id: payload.period_id,
+            start_date: payload.start_date,
+            end_date: payload.end_date,
+            status: "aktif",
+          });
+          if (placementError) {
+            warning = `Akun siswa berhasil dibuat, tetapi penempatan gagal: ${placementError.message}`;
+          }
+        } catch (placementErr) {
+          warning = `Akun siswa berhasil dibuat, tetapi penempatan gagal: ${
+            placementErr instanceof Error ? placementErr.message : "Terjadi kesalahan."
+          }`;
+        }
+        return json({ user_id: userId, ...(warning ? { warning } : {}) });
+      }
+
       return json({ user_id: userId });
+    }
+
+    // Actions below are admin-only
+    if (!isAdmin) {
+      return json({ error: "Hanya Admin yang dapat melakukan aksi ini." }, 403);
     }
 
     const userId = payload.user_id;

@@ -6,7 +6,6 @@ import {
   MapPin,
   RotateCcw,
   Send,
-  SwitchCamera,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
@@ -20,25 +19,14 @@ export interface AttendanceEvidence {
   geopoint: Geopoint | null
 }
 
-interface AttendanceCaptureProps {
+export interface AttendanceCaptureProps {
   busy: boolean
   busyLabel: string
   onCancel: () => void
   onSubmit: (evidence: AttendanceEvidence) => void
+  submitLabel?: string
 }
 
-type Facing = "area" | "selfie"
-
-const FACING_COPY: Record<Facing, { title: string; hint: string }> = {
-  area: {
-    title: "Silakan foto area kerja",
-    hint: "Pastikan lingkungan kerja terlihat jelas dalam bingkai.",
-  },
-  selfie: {
-    title: "Silakan foto wajah Anda",
-    hint: "Gunakan kamera depan dan pastikan wajah terlihat jelas.",
-  },
-}
 
 function wrapLines(
   ctx: CanvasRenderingContext2D,
@@ -120,11 +108,10 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   })
 }
 
-export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: AttendanceCaptureProps) {
+export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit, submitLabel = "Kirim Presensi" }: AttendanceCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const [facing, setFacing] = useState<Facing>("area")
   const [starting, setStarting] = useState(true)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [preview, setPreview] = useState<AttendanceEvidence | null>(null)
@@ -137,7 +124,7 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: Atten
   }, [])
 
   const startStream = useCallback(
-    async (mode: Facing) => {
+    async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraError("Perangkat ini tidak menyediakan akses kamera.")
         setStarting(false)
@@ -148,7 +135,7 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: Atten
         stopStream()
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: mode === "selfie" ? "user" : { ideal: "environment" },
+            facingMode: "user",
             width: { ideal: 1280 },
             height: { ideal: 960 },
           },
@@ -161,7 +148,7 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: Atten
         }
         setCameraError(null)
       } catch {
-        setCameraError("Kamera tidak dapat dibuka. Periksa izin kamera pada browser Anda.")
+        setCameraError("Kamera depan tidak dapat dibuka. Periksa izin kamera pada browser Anda.")
       } finally {
         setStarting(false)
       }
@@ -170,9 +157,9 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: Atten
   )
 
   useEffect(() => {
-    void startStream(facing)
+    void startStream()
     return () => stopStream()
-  }, [facing, startStream, stopStream])
+  }, [startStream, stopStream])
 
   if (preview) {
     return (
@@ -197,14 +184,14 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: Atten
           </Button>
           <Button onClick={() => onSubmit(preview)} disabled={busy || !point}>
             {busy ? <Loader2 className="animate-spin" /> : <Send />}
-            {busy ? busyLabel : "Kirim Presensi"}
+            {busy ? busyLabel : submitLabel}
           </Button>
         </div>
       </div>
     )
   }
 
-  const copy = FACING_COPY[facing]
+  const copy = { title: "Foto wajah Anda", hint: "Pastikan wajah dan sekeliling lingkungan kerja terlihat jelas (kamera depan)." }
 
   return (
     <div className="space-y-4">
@@ -244,14 +231,6 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit }: Atten
       <GeoSummary point={point} locationError={locationError} resolvingAddress={resolvingAddress} />
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          onClick={() => setFacing((prev) => (prev === "area" ? "selfie" : "area"))}
-          disabled={busy}
-        >
-          <SwitchCamera />
-          {facing === "area" ? "Ganti ke Kamera Depan" : "Ganti ke Kamera Belakang"}
-        </Button>
         <Button onClick={captureFrame} disabled={busy || starting || !!cameraError}>
           <Camera />
           Ambil Foto

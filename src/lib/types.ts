@@ -9,6 +9,7 @@ export interface Profile {
   address: string | null
   avatar_url: string | null
   is_active: boolean
+  must_change_password: boolean
   created_at: string
   updated_at: string
 }
@@ -22,6 +23,7 @@ export interface PembimbingProfile {
 export interface SiswaProfile {
   profile_id: string
   nis: string | null
+  nisn: string | null
   class_name: string | null
   major: string | null
 }
@@ -83,6 +85,12 @@ export interface Attendance {
   longitude: number | null
   address: string | null
   captured_at: string | null
+  check_out_photo_path: string | null
+  check_out_photo_name: string | null
+  check_out_latitude: number | null
+  check_out_longitude: number | null
+  check_out_address: string | null
+  check_out_captured_at: string | null
   recorded_by: string | null
   created_at: string
   updated_at: string

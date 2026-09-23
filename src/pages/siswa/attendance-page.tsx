@@ -6,6 +6,7 @@ import {
   Clock,
   FileText,
   LogIn,
+  LogOut,
   MapPin,
   MessageCircle,
   ShieldAlert,
@@ -45,7 +46,7 @@ import {
 } from "@/lib/format"
 import type { AttendanceStatus, LeaveRequest, LeaveStatus, LeaveType } from "@/lib/types"
 
-type Step = "idle" | "choose" | "capture" | "leave"
+type Step = "idle" | "choose" | "capture" | "leave" | "checkout"
 
 interface LeaveForm {
   type: Extract<LeaveType, "izin" | "sakit">
@@ -156,6 +157,35 @@ export function SiswaAttendancePage() {
       reload()
     } catch {
       toast.error("Gagal menyimpan presensi. Silakan coba lagi.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const recordCheckout = async (evidence: AttendanceEvidence) => {
+    if (!profile || !todayRow) return
+    setBusy(true)
+    try {
+      const uploaded = await uploadAttendancePhoto(profile.id, evidence.blob)
+      const point = evidence.geopoint
+      const { error } = await supabase
+        .from("attendance")
+        .update({
+          check_out_time: new Date().toISOString(),
+          check_out_photo_path: uploaded.path,
+          check_out_photo_name: uploaded.name,
+          check_out_latitude: point?.latitude ?? null,
+          check_out_longitude: point?.longitude ?? null,
+          check_out_address: point?.address ?? null,
+          check_out_captured_at: point?.capturedAt ?? new Date().toISOString(),
+        })
+        .eq("id", todayRow.id)
+      if (error) throw new Error(error.message)
+      toast.success("Presensi keluar berhasil dicatat.")
+      setStep("idle")
+      reload()
+    } catch {
+      toast.error("Gagal menyimpan presensi keluar. Silakan coba lagi.")
     } finally {
       setBusy(false)
     }
@@ -275,7 +305,13 @@ export function SiswaAttendancePage() {
               </div>
 
               {todayRow ? (
-                <RecordedSummary row={todayRow} leave={todayLeave} consultation={consultPanel} />
+                <RecordedSummary
+                  row={todayRow}
+                  leave={todayLeave}
+                  consultation={consultPanel}
+                  onCheckout={() => setStep("checkout")}
+                  permissionsReady={permissionsReady}
+                />
               ) : todayLeave ? (
                 <div className="space-y-4">
                   <Alert>
@@ -297,9 +333,9 @@ export function SiswaAttendancePage() {
                     </span>
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Belum ada presensi hari ini</p>
-                      <p className="mx-auto max-w-xs text-xs text-muted-foreground">
-                        Catat kehadiran dengan foto area kerja, atau ajukan izin/sakit bila berhalangan.
-                      </p>
+                        <p className="text-xs text-muted-foreground">
+                          Foto selfie beserta lokasi dan waktu untuk kehadiran.
+                        </p>
                     </div>
                   </div>
 
@@ -389,6 +425,7 @@ export function SiswaAttendancePage() {
                         <p className="text-sm font-medium">{formatDate(row.date)}</p>
                         <p className="text-xs text-muted-foreground">
                           Masuk {formatTime(row.check_in_time)}
+                          {row.check_out_time ? ` - Keluar ${formatTime(row.check_out_time)}` : ""}
                           {row.note ? ` - ${row.note}` : ""}
                         </p>
                         {row.address || row.latitude !== null ? (
@@ -423,17 +460,21 @@ export function SiswaAttendancePage() {
         }}
         title={
           step === "capture"
-            ? "Ambil Foto Kehadiran"
-            : step === "leave"
-              ? `Pengajuan ${leaveForm.type === "izin" ? "Izin" : "Sakit"}`
-              : "Pilih Keterangan Kehadiran"
+            ? "Presensi Masuk"
+            : step === "checkout"
+              ? "Presensi Keluar"
+              : step === "leave"
+                ? `Pengajuan ${leaveForm.type === "izin" ? "Izin" : "Sakit"}`
+                : "Pilih Keterangan Kehadiran"
         }
         description={
           step === "capture"
-            ? "Foto area kerja beserta lokasi dan waktu pengambilan."
-            : step === "leave"
-              ? `Pengajuan dikirim ke pembimbing ${supervisorName ?? "-"}.`
-              : "Pilih Hadir untuk mengirim foto, atau Izin/Sakit bila berhalangan."
+            ? "Foto selfie untuk presensi masuk dengan lokasi dan waktu."
+            : step === "checkout"
+              ? "Foto selfie untuk presensi keluar dengan lokasi dan waktu."
+              : step === "leave"
+                ? `Pengajuan dikirim ke pembimbing ${supervisorName ?? "-"}.`
+                : "Pilih Hadir untuk mengirim foto, atau Izin/Sakit bila berhalangan."
         }
       >
         {step === "capture" ? (
@@ -443,6 +484,17 @@ export function SiswaAttendancePage() {
               busyLabel="Menyimpan..."
               onCancel={() => setStep("choose")}
               onSubmit={recordPresent}
+              submitLabel="Kirim Presensi Masuk"
+            />
+          </div>
+        ) : step === "checkout" ? (
+          <div className="pb-2">
+            <AttendanceCapture
+              busy={busy}
+              busyLabel="Menyimpan..."
+              onCancel={() => setStep("idle")}
+              onSubmit={recordCheckout}
+              submitLabel="Kirim Presensi Keluar"
             />
           </div>
         ) : step === "leave" ? (
@@ -642,10 +694,13 @@ function RecordedSummary({
   row,
   leave,
   consultation,
+  onCheckout,
+  permissionsReady,
 }: {
   row: {
     status: AttendanceStatus
     check_in_time: string | null
+    check_out_time: string | null
     note: string | null
     photo_path: string | null
     photo_name: string | null
@@ -653,24 +708,38 @@ function RecordedSummary({
     longitude: number | null
     address: string | null
     captured_at: string | null
+    check_out_photo_path: string | null
+    check_out_photo_name: string | null
+    check_out_latitude: number | null
+    check_out_longitude: number | null
+    check_out_address: string | null
+    check_out_captured_at: string | null
   }
   leave: LeaveRequest | null
   consultation: React.ReactNode
+  onCheckout?: () => void
+  permissionsReady?: boolean
 }) {
   if (row.status === "hadir") {
+    const hasCheckout = !!row.check_out_time
     return (
       <div className="space-y-4">
         <Alert className="border-emerald-500/30 bg-emerald-500/5">
           <CheckCircle2 className="text-emerald-600 dark:text-emerald-400" />
           <AlertTitle>Presensi hari ini tercatat</AlertTitle>
           <AlertDescription>
-            Kehadiran Anda tercatat pada {formatTime(row.check_in_time)} beserta foto bukti area kerja.
+            Masuk {formatTime(row.check_in_time)}
+            {hasCheckout ? ` — Keluar ${formatTime(row.check_out_time)}` : " — Belum presensi keluar"}
           </AlertDescription>
         </Alert>
 
         <div className="grid grid-cols-2 gap-3">
           <SummaryTile icon={LogIn} label="Jam Masuk" value={formatTime(row.check_in_time)} />
-          <SummaryTile icon={Camera} label="Waktu Foto" value={formatTime(row.captured_at)} />
+          <SummaryTile
+            icon={LogOut}
+            label="Jam Keluar"
+            value={hasCheckout ? formatTime(row.check_out_time) : "—"}
+          />
           <SummaryTile
             icon={Clock}
             label="Status"
@@ -681,17 +750,38 @@ function RecordedSummary({
               />
             }
           />
-          <SummaryTile icon={MapPin} label="Koordinat" value={formatCoordinate(row.latitude, row.longitude)} mono />
+          <SummaryTile icon={MapPin} label="Koordinat Masuk" value={formatCoordinate(row.latitude, row.longitude)} mono />
         </div>
 
         <div className="space-y-0.5 rounded-lg border p-3">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <MapPin className="size-3.5" /> Alamat
+            <MapPin className="size-3.5" /> Alamat Masuk
           </p>
           <p className="text-sm">{row.address ?? "Alamat tidak tersedia"}</p>
         </div>
 
-        <AttachmentLink path={row.photo_path} name={row.photo_name} />
+        {hasCheckout ? (
+          <div className="space-y-0.5 rounded-lg border p-3">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MapPin className="size-3.5" /> Alamat Keluar
+            </p>
+            <p className="text-sm">{row.check_out_address ?? "Alamat tidak tersedia"}</p>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <AttachmentLink path={row.photo_path} name={row.photo_name} label="Foto Masuk" />
+          {hasCheckout ? (
+            <AttachmentLink path={row.check_out_photo_path} name={row.check_out_photo_name} label="Foto Keluar" />
+          ) : null}
+        </div>
+
+        {!hasCheckout && onCheckout && permissionsReady ? (
+          <Button className="w-full" onClick={onCheckout}>
+            <LogOut />
+            Presensi Keluar
+          </Button>
+        ) : null}
       </div>
     )
   }

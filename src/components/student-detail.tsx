@@ -32,7 +32,7 @@ import {
 } from "@/lib/format"
 import type { AttendanceStatus, LeaveStatus, ReviewStatus } from "@/lib/types"
 
-export function AttachmentLink({ path, name }: { path: string | null; name: string | null }) {
+export function AttachmentLink({ path, name, label }: { path: string | null; name: string | null; label?: string }) {
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
 
@@ -53,7 +53,7 @@ export function AttachmentLink({ path, name }: { path: string | null; name: stri
   return (
     <Button variant="outline" size="sm" onClick={open} disabled={loading}>
       {loading ? <Loader2 className="animate-spin" /> : <Link2 />}
-      {failed ? "Berkas tidak tersedia" : (name ?? "Lihat lampiran")}
+      {failed ? "Berkas tidak tersedia" : (label ?? name ?? "Lihat lampiran")}
     </Button>
   )
 }
