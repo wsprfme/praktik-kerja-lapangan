@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { SchoolLogo } from "@/components/school-logo"
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -74,8 +75,8 @@ export function SiswaShell() {
     <div className="min-h-svh bg-muted/30">
       <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-2xl items-center gap-3 px-4">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
-            PKL
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white p-0.5 dark:bg-white/95">
+            <SchoolLogo className="size-full object-contain" />
           </span>
           <p className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</p>
           <Button

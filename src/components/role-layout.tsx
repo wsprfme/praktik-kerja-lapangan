@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { ChevronUp, LogOut, UserRound } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
+import { SchoolLogo } from "@/components/school-logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -52,8 +53,8 @@ export function RoleLayout({ role }: { role: Role }) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <NavLink to={sections[0].items[0].to}>
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-                    PKL
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white p-0.5 dark:bg-white/95">
+                    <SchoolLogo className="size-full object-contain" />
                   </span>
                   <span className="grid flex-1 text-left leading-tight">
                     <span className="truncate text-sm font-semibold">Manajemen PKL</span>

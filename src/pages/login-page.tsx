@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { GraduationCap, Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react"
+import { Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
+import { SchoolLogo } from "@/components/school-logo"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -103,8 +104,8 @@ export function LoginPage() {
       <div className="flex flex-1 items-center justify-center px-6 py-10">
         <div className="w-full max-w-md space-y-8">
           <div className="flex flex-col items-center space-y-4 text-center">
-            <span className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground ring-8 ring-primary/10">
-              <GraduationCap className="size-8" />
+            <span className="flex size-20 items-center justify-center rounded-2xl bg-white shadow-sm ring-8 ring-primary/10 dark:bg-white/95">
+              <SchoolLogo className="size-14 object-contain" />
             </span>
             <div className="space-y-1.5">
               <h1 className="text-2xl font-semibold tracking-tight">
