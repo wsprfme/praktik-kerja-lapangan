@@ -2,7 +2,7 @@ import { useState } from "react"
 import { KeyRound, Save, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
-import { PageHeader } from "@/components/page-states"
+import { ScreenHeader } from "@/components/mobile-ui"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -81,11 +81,11 @@ export function ProfilePage({ overview }: ProfilePageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Profil & Kata Sandi" description="Perbarui data diri dan kata sandi akun Anda." />
+    <div className="space-y-5">
+      <ScreenHeader title="Profil & Kata Sandi" description="Perbarui data diri dan kata sandi akun Anda." />
 
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-4 p-5">
+      <Card className="gap-0 py-0">
+        <CardContent className="flex items-center gap-4 p-4">
           <Avatar className="size-14">
             <AvatarFallback className="text-lg">{initials(profile.full_name)}</AvatarFallback>
           </Avatar>
@@ -100,13 +100,13 @@ export function ProfilePage({ overview }: ProfilePageProps) {
       </Card>
 
       {overview ? (
-        <Card>
-          <CardHeader>
+        <Card className="gap-0 py-0">
+          <CardHeader className="px-4 pt-4">
             <CardTitle className="text-base">Data PKL Saya</CardTitle>
             <CardDescription>Data berikut hanya dapat diubah oleh Admin.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <CardContent className="p-4">
+            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-3">
               <ReadOnly label="NIS" value={overview.detail?.nis} />
               <ReadOnly label="Kelas" value={overview.detail?.class_name} />
               <ReadOnly label="Jurusan" value={overview.detail?.major} />
@@ -118,16 +118,16 @@ export function ProfilePage({ overview }: ProfilePageProps) {
         </Card>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="gap-0 py-0">
+          <CardHeader className="px-4 pt-4">
             <CardTitle className="flex items-center gap-2 text-base">
               <UserRound className="size-4" /> Data Diri
             </CardTitle>
             <CardDescription>Perubahan langsung tersimpan ke akun Anda.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form className="space-y-5" onSubmit={saveProfile}>
+          <CardContent className="p-4">
+            <form className="space-y-4" onSubmit={saveProfile}>
               <Field>
                 <FieldLabel htmlFor="nama">Nama Lengkap</FieldLabel>
                 <Input id="nama" value={fullName} onChange={(event) => setFullName(event.target.value)} />
@@ -153,15 +153,15 @@ export function ProfilePage({ overview }: ProfilePageProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="gap-0 py-0">
+          <CardHeader className="px-4 pt-4">
             <CardTitle className="flex items-center gap-2 text-base">
               <KeyRound className="size-4" /> Ubah Kata Sandi
             </CardTitle>
             <CardDescription>Gunakan kata sandi yang kuat dan mudah Anda ingat.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form className="space-y-5" onSubmit={savePassword}>
+          <CardContent className="p-4">
+            <form className="space-y-4" onSubmit={savePassword}>
               <Field>
                 <FieldLabel htmlFor="sandi-baru">Kata Sandi Baru</FieldLabel>
                 <Input

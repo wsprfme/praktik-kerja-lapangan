@@ -16,11 +16,13 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { AttendanceCapture, type AttendanceEvidence } from "@/components/attendance-capture"
 import { AttachmentLink } from "@/components/student-detail"
-import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/page-states"
+import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
+import { ResponsiveSheet, ScreenHeader } from "@/components/mobile-ui"
 import { StatusBadge } from "@/components/status-badge"
+import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
@@ -87,8 +89,8 @@ export function SiswaAttendancePage() {
 
   if (data.loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Presensi" description="Catat kehadiran harian PKL Anda." />
+      <div className="space-y-5">
+        <ScreenHeader title="Presensi" description="Catat kehadiran harian PKL Anda." />
         <LoadingState rows={4} />
       </div>
     )
@@ -96,8 +98,8 @@ export function SiswaAttendancePage() {
 
   if (data.error) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Presensi" description="Catat kehadiran harian PKL Anda." />
+      <div className="space-y-5">
+        <ScreenHeader title="Presensi" description="Catat kehadiran harian PKL Anda." />
         <ErrorState message={data.error} onRetry={data.reload} />
       </div>
     )
@@ -232,9 +234,9 @@ export function SiswaAttendancePage() {
   ) : null
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Presensi Harian"
+    <div className="space-y-5">
+      <ScreenHeader
+        title="Presensi"
         description={`${formatDayName(today)}, ${formatDate(today)}`}
       />
 
@@ -247,7 +249,7 @@ export function SiswaAttendancePage() {
       ) : (
         <>
           {todayHoliday ? (
-            <Card className="border-sky-500/30 bg-sky-500/5">
+            <Card className="gap-0 border-sky-500/30 bg-sky-500/5 py-0">
               <CardContent className="p-4 text-sm">
                 Hari ini ditetapkan sebagai hari libur: <strong>{todayHoliday.name}</strong>. Presensi tidak
                 diwajibkan.
@@ -255,127 +257,25 @@ export function SiswaAttendancePage() {
             </Card>
           ) : null}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
-              <CardDescription>
-                {overview?.company?.name ?? "-"} - Pembimbing {overview?.supervisor?.full_name ?? "-"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {todayRow ? (
-                <RecordedSummary
-                  row={todayRow}
-                  leave={todayLeave}
-                  consultation={consultPanel}
-                />
-              ) : step === "capture" ? (
-                <AttendanceCapture
-                  busy={busy}
-                  busyLabel="Menyimpan..."
-                  onCancel={() => setStep("choose")}
-                  onSubmit={recordPresent}
-                />
-              ) : step === "choose" ? (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Pilih keterangan kehadiran</p>
-                    <p className="text-xs text-muted-foreground">
-                      Pilih Hadir untuk mengirim foto area kerja, atau pilih Izin/Sakit bila Anda berhalangan
-                      hadir hari ini.
-                    </p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <ChoiceCard
-                      icon={Camera}
-                      title="Hadir"
-                      description="Ambil foto area kerja beserta lokasi dan waktu."
-                      onClick={() => setStep("capture")}
-                    />
-                    <ChoiceCard
-                      icon={FileText}
-                      title="Izin"
-                      description="Ajukan izin dengan alasan yang jelas."
-                      onClick={() => {
-                        setLeaveForm({ type: "izin", reason: "", file: null })
-                        setStep("leave")
-                      }}
-                    />
-                    <ChoiceCard
-                      icon={Stethoscope}
-                      title="Sakit"
-                      description="Ajukan sakit, lampirkan surat dokter bila ada."
-                      onClick={() => {
-                        setLeaveForm({ type: "sakit", reason: "", file: null })
-                        setStep("leave")
-                      }}
-                    />
-                  </div>
-                  <Button variant="ghost" onClick={() => setStep("idle")}>
-                    Batal
-                  </Button>
+          <Card className="gap-0 py-0">
+            <CardContent className="space-y-4 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="text-sm font-semibold">Status hari ini</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {overview?.company?.name ?? "-"}
+                  </p>
                 </div>
-              ) : step === "leave" ? (
-                <form className="space-y-4" onSubmit={submitLeave}>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">
-                      Pengajuan {leaveForm.type === "izin" ? "Izin" : "Sakit"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Pengajuan akan dikirim ke pembimbing {supervisorName ?? "-"} untuk disetujui.
-                    </p>
-                  </div>
+                {todayRow ? (
+                  <StatusBadge
+                    label={ATTENDANCE_LABEL[todayRow.status as AttendanceStatus]}
+                    className={ATTENDANCE_CLASS[todayRow.status as AttendanceStatus]}
+                  />
+                ) : null}
+              </div>
 
-                  <Field>
-                    <FieldLabel htmlFor="jenis-absen">Keterangan</FieldLabel>
-                    <NativeSelect
-                      id="jenis-absen"
-                      value={leaveForm.type}
-                      onChange={(e) =>
-                        setLeaveForm((prev) => ({
-                          ...prev,
-                          type: e.target.value as LeaveForm["type"],
-                        }))
-                      }
-                    >
-                      <option value="izin">Izin</option>
-                      <option value="sakit">Sakit</option>
-                    </NativeSelect>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="alasan-absen">Alasan</FieldLabel>
-                    <Textarea
-                      id="alasan-absen"
-                      rows={3}
-                      value={leaveForm.reason}
-                      onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
-                      placeholder="Contoh: mengikuti lomba di sekolah"
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="bukti-absen">Lampiran Bukti (opsional)</FieldLabel>
-                    <Input
-                      id="bukti-absen"
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={(e) =>
-                        setLeaveForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))
-                      }
-                    />
-                    <FieldDescription>Contoh: surat dokter atau surat izin orang tua.</FieldDescription>
-                  </Field>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={busy}>
-                      {busy ? "Mengirim..." : "Kirim Pengajuan"}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={() => setStep("choose")} disabled={busy}>
-                      Batal
-                    </Button>
-                  </div>
-                </form>
+              {todayRow ? (
+                <RecordedSummary row={todayRow} leave={todayLeave} consultation={consultPanel} />
               ) : todayLeave ? (
                 <div className="space-y-4">
                   <Alert>
@@ -391,9 +291,17 @@ export function SiswaAttendancePage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Anda belum mencatat presensi hari ini.
-                  </p>
+                  <div className="flex flex-col items-center gap-3 rounded-xl bg-muted/60 py-6 text-center">
+                    <span className="flex size-14 items-center justify-center rounded-full bg-background">
+                      <Camera className="size-6 text-muted-foreground" />
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Belum ada presensi hari ini</p>
+                      <p className="mx-auto max-w-xs text-xs text-muted-foreground">
+                        Catat kehadiran dengan foto area kerja, atau ajukan izin/sakit bila berhalangan.
+                      </p>
+                    </div>
+                  </div>
 
                   {!permissionsReady ? (
                     <Alert variant="destructive">
@@ -427,14 +335,15 @@ export function SiswaAttendancePage() {
                   ) : null}
 
                   {permissionsReady ? (
-                    <Button onClick={() => setStep("choose")}>
+                    <Button className="w-full" onClick={() => setStep("choose")}>
                       <Camera />
-                      Absen
+                      Absen Sekarang
                     </Button>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-2">
                       {permissions.camera !== "granted" && (
                         <Button
+                          className="w-full"
                           onClick={() => void permissions.requestCamera()}
                           disabled={permissions.requesting}
                         >
@@ -446,6 +355,7 @@ export function SiswaAttendancePage() {
                       )}
                       {permissions.location !== "granted" && (
                         <Button
+                          className="w-full"
                           variant={permissions.camera === "granted" ? "default" : "outline"}
                           onClick={() => void permissions.requestLocation()}
                           disabled={permissions.requesting}
@@ -463,22 +373,20 @@ export function SiswaAttendancePage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Riwayat Presensi</CardTitle>
-              <CardDescription>{attendance.length} catatan presensi.</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <Card className="gap-0 py-0">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-3 pb-1">
+                <p className="text-sm font-semibold">Riwayat presensi</p>
+                <span className="text-xs text-muted-foreground">{attendance.length} catatan</span>
+              </div>
               {attendance.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Belum ada riwayat presensi.</p>
+                <p className="pt-2 text-sm text-muted-foreground">Belum ada riwayat presensi.</p>
               ) : (
                 <div className="divide-y">
                   {attendance.map((row) => (
-                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div key={row.id} className="flex items-start justify-between gap-3 py-3">
                       <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium">
-                          {formatDayName(row.date)}, {formatDate(row.date)}
-                        </p>
+                        <p className="text-sm font-medium">{formatDate(row.date)}</p>
                         <p className="text-xs text-muted-foreground">
                           Masuk {formatTime(row.check_in_time)}
                           {row.note ? ` - ${row.note}` : ""}
@@ -486,21 +394,18 @@ export function SiswaAttendancePage() {
                         {row.address || row.latitude !== null ? (
                           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                             <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                            <span className="min-w-0">
+                            <span className="line-clamp-2 min-w-0">
                               {row.address ?? "Alamat tidak tersedia"}
-                              {row.latitude !== null && row.longitude !== null
-                                ? ` (${formatCoordinate(row.latitude, row.longitude)})`
-                                : ""}
                             </span>
                           </p>
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <AttachmentLink path={row.photo_path} name={row.photo_name} />
+                      <div className="flex shrink-0 flex-col items-end gap-2">
                         <StatusBadge
                           label={ATTENDANCE_LABEL[row.status as AttendanceStatus]}
                           className={ATTENDANCE_CLASS[row.status as AttendanceStatus]}
                         />
+                        <AttachmentLink path={row.photo_path} name={row.photo_name} />
                       </div>
                     </div>
                   ))}
@@ -510,6 +415,125 @@ export function SiswaAttendancePage() {
           </Card>
         </>
       )}
+
+      <ResponsiveSheet
+        open={step !== "idle"}
+        onOpenChange={(next) => {
+          if (!next && step !== "capture") setStep("idle")
+        }}
+        title={
+          step === "capture"
+            ? "Ambil Foto Kehadiran"
+            : step === "leave"
+              ? `Pengajuan ${leaveForm.type === "izin" ? "Izin" : "Sakit"}`
+              : "Pilih Keterangan Kehadiran"
+        }
+        description={
+          step === "capture"
+            ? "Foto area kerja beserta lokasi dan waktu pengambilan."
+            : step === "leave"
+              ? `Pengajuan dikirim ke pembimbing ${supervisorName ?? "-"}.`
+              : "Pilih Hadir untuk mengirim foto, atau Izin/Sakit bila berhalangan."
+        }
+      >
+        {step === "capture" ? (
+          <div className="pb-2">
+            <AttendanceCapture
+              busy={busy}
+              busyLabel="Menyimpan..."
+              onCancel={() => setStep("choose")}
+              onSubmit={recordPresent}
+            />
+          </div>
+        ) : step === "leave" ? (
+          <form className="space-y-4 pb-2" onSubmit={submitLeave}>
+            <Field>
+              <FieldLabel htmlFor="jenis-absen">Keterangan</FieldLabel>
+              <NativeSelect
+                id="jenis-absen"
+                value={leaveForm.type}
+                onChange={(e) =>
+                  setLeaveForm((prev) => ({
+                    ...prev,
+                    type: e.target.value as LeaveForm["type"],
+                  }))
+                }
+              >
+                <option value="izin">Izin</option>
+                <option value="sakit">Sakit</option>
+              </NativeSelect>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="alasan-absen">Alasan</FieldLabel>
+              <Textarea
+                id="alasan-absen"
+                rows={3}
+                value={leaveForm.reason}
+                onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
+                placeholder="Contoh: mengikuti lomba di sekolah"
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="bukti-absen">Lampiran Bukti (opsional)</FieldLabel>
+              <Input
+                id="bukti-absen"
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) =>
+                  setLeaveForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))
+                }
+              />
+              <FieldDescription>Contoh: surat dokter atau surat izin orang tua.</FieldDescription>
+            </Field>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setStep("choose")}
+                disabled={busy}
+              >
+                Batal
+              </Button>
+              <Button type="submit" className="flex-1" disabled={busy}>
+                {busy ? "Mengirim..." : "Kirim"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-3 pb-2">
+            <div className="grid gap-3">
+              <ChoiceCard
+                icon={Camera}
+                title="Hadir"
+                description="Ambil foto area kerja beserta lokasi dan waktu."
+                onClick={() => setStep("capture")}
+              />
+              <ChoiceCard
+                icon={FileText}
+                title="Izin"
+                description="Ajukan izin dengan alasan yang jelas."
+                onClick={() => {
+                  setLeaveForm({ type: "izin", reason: "", file: null })
+                  setStep("leave")
+                }}
+              />
+              <ChoiceCard
+                icon={Stethoscope}
+                title="Sakit"
+                description="Ajukan sakit, lampirkan surat dokter bila ada."
+                onClick={() => {
+                  setLeaveForm({ type: "sakit", reason: "", file: null })
+                  setStep("leave")
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </ResponsiveSheet>
     </div>
   )
 }
@@ -536,11 +560,15 @@ function ChoiceCard({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="flex items-start gap-3 rounded-xl border bg-card p-4 text-left transition-colors active:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
-      <Icon className="size-5 text-muted-foreground" />
-      <p className="mt-2 text-sm font-medium">{title}</p>
-      <p className="text-xs text-muted-foreground">{description}</p>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </span>
     </button>
   )
 }
@@ -573,7 +601,7 @@ function ConsultationPanel({
     : null
 
   return (
-    <div className="space-y-3 rounded-lg border p-4">
+    <div className="space-y-3 rounded-xl border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">Pengajuan {label}</p>
         <StatusBadge
@@ -640,7 +668,7 @@ function RecordedSummary({
           </AlertDescription>
         </Alert>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3">
           <SummaryTile icon={LogIn} label="Jam Masuk" value={formatTime(row.check_in_time)} />
           <SummaryTile icon={Camera} label="Waktu Foto" value={formatTime(row.captured_at)} />
           <SummaryTile
@@ -653,19 +681,14 @@ function RecordedSummary({
               />
             }
           />
+          <SummaryTile icon={MapPin} label="Koordinat" value={formatCoordinate(row.latitude, row.longitude)} mono />
         </div>
 
-        <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
-          <div className="space-y-0.5">
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <MapPin className="size-3.5" /> Alamat
-            </p>
-            <p className="text-sm">{row.address ?? "Alamat tidak tersedia"}</p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-xs text-muted-foreground">Koordinat</p>
-            <p className="font-mono text-sm">{formatCoordinate(row.latitude, row.longitude)}</p>
-          </div>
+        <div className="space-y-0.5 rounded-lg border p-3">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <MapPin className="size-3.5" /> Alamat
+          </p>
+          <p className="text-sm">{row.address ?? "Alamat tidak tersedia"}</p>
         </div>
 
         <AttachmentLink path={row.photo_path} name={row.photo_name} />
@@ -710,18 +733,22 @@ function SummaryTile({
   label,
   value,
   badge,
+  mono,
 }: {
   icon: typeof Clock
   label: string
   value?: string
   badge?: React.ReactNode
+  mono?: boolean
 }) {
   return (
-    <div className="rounded-lg border p-4">
+    <div className="space-y-1 rounded-xl border p-3">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className="size-3.5" /> {label}
+        <Icon className="size-3.5 shrink-0" /> <span className="truncate">{label}</span>
       </p>
-      {badge ?? <p className="text-lg font-semibold">{value ?? "-"}</p>}
+      {badge ?? (
+        <p className={cn("truncate text-sm font-semibold", mono && "font-mono text-xs")}>{value ?? "-"}</p>
+      )}
     </div>
   )
 }

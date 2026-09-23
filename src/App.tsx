@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider, useAuth } from "@/components/auth-provider"
 import { AuthGate, FullPageLoader, RoleGate } from "@/components/guards"
 import { RoleLayout } from "@/components/role-layout"
+import { SiswaShell } from "@/components/siswa-shell"
 import { LoginPage } from "@/pages/login-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminAccountsPage } from "@/pages/admin/accounts-page"
@@ -94,7 +95,7 @@ export function App() {
             element={
               <AuthGate>
                 <RoleGate role="siswa">
-                  <RoleLayout role="siswa" />
+                  <SiswaShell />
                 </RoleGate>
               </AuthGate>
             }

@@ -1,22 +1,21 @@
 import { useEffect, useState } from "react"
-import { BookOpen, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import { BookOpen, MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { AttachmentLink } from "@/components/student-detail"
-import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/page-states"
+import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
+import { Fab, ResponsiveSheet, ScreenHeader } from "@/components/mobile-ui"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
 import { fetchJournals } from "@/lib/queries"
@@ -153,28 +152,23 @@ export function SiswaJournalsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Jurnal Harian" description="Catat kegiatan PKL Anda setiap hari beserta buktinya.">
-        <Button
-          onClick={() => {
-            setEditing(null)
-            setOpen(true)
-          }}
-        >
-          <Plus />
-          Tulis Jurnal
-        </Button>
-      </PageHeader>
+    <div className="space-y-5">
+      <ScreenHeader title="Jurnal Harian" description="Catat kegiatan PKL Anda setiap hari." />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-44" />
-        <div className="relative w-full sm:w-72">
+      <div className="flex gap-2">
+        <Input
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="h-10 w-[9.5rem] shrink-0"
+        />
+        <div className="relative min-w-0 flex-1">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari judul atau kegiatan..."
-            className="pl-9"
+            placeholder="Cari kegiatan..."
+            className="h-10 pl-9"
           />
         </div>
       </div>
@@ -192,149 +186,154 @@ export function SiswaJournalsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((journal) => (
-            <Card key={journal.id}>
-              <CardHeader>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <Card key={journal.id} className="gap-0 py-0">
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
-                    <CardTitle className="text-base">{journal.title}</CardTitle>
-                    <CardDescription>
+                    <p className="truncate text-sm font-semibold">{journal.title}</p>
+                    <p className="text-xs text-muted-foreground">
                       {formatDate(journal.date)} - {formatDuration(journal.duration_minutes)}
-                    </CardDescription>
+                    </p>
                   </div>
-                  <StatusBadge
-                    label={REVIEW_LABEL[journal.review_status as ReviewStatus]}
-                    className={REVIEW_CLASS[journal.review_status as ReviewStatus]}
-                  />
+                  <div className="flex shrink-0 items-center gap-1">
+                    <StatusBadge
+                      label={REVIEW_LABEL[journal.review_status as ReviewStatus]}
+                      className={REVIEW_CLASS[journal.review_status as ReviewStatus]}
+                    />
+                    {journal.review_status === "menunggu" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="size-8" aria-label="Aksi jurnal">
+                            <MoreVertical className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditing(journal)
+                              setOpen(true)
+                            }}
+                          >
+                            <Pencil />
+                            Ubah
+                          </DropdownMenuItem>
+                          <DropdownMenuItem variant="destructive" onClick={() => remove(journal)}>
+                            <Trash2 />
+                            Hapus
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null}
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
+
                 {journal.description ? (
-                  <p className="text-sm whitespace-pre-wrap text-muted-foreground">{journal.description}</p>
+                  <p className="line-clamp-3 text-sm text-muted-foreground">{journal.description}</p>
                 ) : null}
 
                 {journal.supervisor_feedback ? (
-                  <div className="rounded-md bg-muted p-3 text-sm">
+                  <div className="rounded-lg bg-muted p-3 text-sm">
                     <p className="mb-1 text-xs font-medium text-muted-foreground">
                       Umpan balik {journal.reviewed_by_name ?? "pembimbing"}
-                      {journal.reviewed_at ? ` - ${formatDateTime(journal.reviewed_at)}` : ""}
                     </p>
                     {journal.supervisor_feedback}
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Belum ada umpan balik dari pembimbing.</p>
-                )}
+                ) : journal.review_status === "menunggu" ? (
+                  <p className="text-xs text-muted-foreground">Menunggu tinjauan pembimbing.</p>
+                ) : null}
 
                 <div className="flex flex-wrap items-center gap-2">
                   <AttachmentLink path={journal.attachment_path} name={journal.attachment_name} />
-                  {journal.review_status === "menunggu" ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditing(journal)
-                          setOpen(true)
-                        }}
-                      >
-                        <Pencil />
-                        Ubah
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => remove(journal)}>
-                        <Trash2 />
-                        Hapus
-                      </Button>
-                    </>
+                  {journal.review_status === "ditinjau" && journal.reviewed_at ? (
+                    <span className="text-xs text-muted-foreground">
+                      Ditinjau {formatDateTime(journal.reviewed_at)}
+                    </span>
                   ) : null}
                 </div>
-
-                {journal.review_status === "ditinjau" && journal.reviewed_by_name ? (
-                  <p className="text-xs text-muted-foreground">
-                    Ditinjau oleh {journal.reviewed_by_name}
-                    {journal.reviewed_at ? ` pada ${formatDateTime(journal.reviewed_at)}` : ""}. Jurnal yang
-                    sudah ditinjau tidak dapat diubah lagi.
-                  </p>
-                ) : null}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      <Dialog
+      <Fab
+        label="Tulis Jurnal"
+        icon={Plus}
+        onClick={() => {
+          setEditing(null)
+          setOpen(true)
+        }}
+      />
+
+      <ResponsiveSheet
         open={open}
         onOpenChange={(next) => {
           setOpen(next)
           if (!next) setEditing(null)
         }}
+        title={editing ? "Ubah Jurnal" : "Tulis Jurnal Harian"}
+        description="Satu jurnal per hari. Jurnal yang sudah ditinjau tidak dapat diubah."
       >
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Ubah Jurnal" : "Tulis Jurnal Harian"}</DialogTitle>
-            <DialogDescription>
-              Satu jurnal per hari. Jurnal yang sudah ditinjau tidak dapat diubah.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={save}>
-            <Field>
-              <FieldLabel htmlFor="tanggal-jurnal">Tanggal</FieldLabel>
-              <Input
-                id="tanggal-jurnal"
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="judul-jurnal">Judul Kegiatan</FieldLabel>
-              <Input
-                id="judul-jurnal"
-                value={form.title}
-                onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="Contoh: Membuat desain banner promosi"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="uraian-jurnal">Uraian Kegiatan</FieldLabel>
-              <Textarea
-                id="uraian-jurnal"
-                rows={4}
-                value={form.description}
-                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Jelaskan apa yang Anda kerjakan, alat yang dipakai, dan hasilnya."
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="durasi-jurnal">Durasi (menit)</FieldLabel>
-              <Input
-                id="durasi-jurnal"
-                type="number"
-                min={0}
-                value={form.duration}
-                onChange={(e) => setForm((prev) => ({ ...prev, duration: e.target.value }))}
-                placeholder="Contoh: 480"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="bukti-jurnal">Lampiran Bukti (opsional)</FieldLabel>
-              <Input
-                id="bukti-jurnal"
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => setForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
-              />
-              <FieldDescription>Foto atau PDF maksimal sesuai kuota penyimpanan.</FieldDescription>
-            </Field>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Batal
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Menyimpan..." : "Simpan Jurnal"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        <form className="space-y-4 pb-2" onSubmit={save}>
+          <Field>
+            <FieldLabel htmlFor="tanggal-jurnal">Tanggal</FieldLabel>
+            <Input
+              id="tanggal-jurnal"
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="judul-jurnal">Judul Kegiatan</FieldLabel>
+            <Input
+              id="judul-jurnal"
+              value={form.title}
+              onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Contoh: Membuat desain banner promosi"
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="uraian-jurnal">Uraian Kegiatan</FieldLabel>
+            <Textarea
+              id="uraian-jurnal"
+              rows={4}
+              value={form.description}
+              onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+              placeholder="Jelaskan apa yang Anda kerjakan, alat yang dipakai, dan hasilnya."
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="durasi-jurnal">Durasi (menit)</FieldLabel>
+            <Input
+              id="durasi-jurnal"
+              type="number"
+              min={0}
+              value={form.duration}
+              onChange={(e) => setForm((prev) => ({ ...prev, duration: e.target.value }))}
+              placeholder="Contoh: 480"
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="bukti-jurnal">Lampiran Bukti (opsional)</FieldLabel>
+            <Input
+              id="bukti-jurnal"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
+            />
+            <FieldDescription>Foto atau PDF maksimal sesuai kuota penyimpanan.</FieldDescription>
+          </Field>
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>
+              Batal
+            </Button>
+            <Button type="submit" className="flex-1" disabled={saving}>
+              {saving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </div>
+        </form>
+      </ResponsiveSheet>
     </div>
   )
 }

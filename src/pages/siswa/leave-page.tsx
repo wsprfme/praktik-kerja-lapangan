@@ -3,18 +3,11 @@ import { FileText, Plus, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { AttachmentLink } from "@/components/student-detail"
-import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/page-states"
+import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
+import { Fab, ResponsiveSheet, ScreenHeader } from "@/components/mobile-ui"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Card, CardContent } from "@/components/ui/card"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
@@ -126,22 +119,8 @@ export function SiswaLeavePage() {
   const placementReady = overview?.placement?.status === "aktif"
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Pengajuan Izin, Sakit & Cuti"
-        description="Ajukan ketidakhadiran dan pantau keputusannya."
-      >
-        <Button
-          onClick={() => {
-            setForm(EMPTY)
-            setOpen(true)
-          }}
-          disabled={!placementReady}
-        >
-          <Plus />
-          Buat Pengajuan
-        </Button>
-      </PageHeader>
+    <div className="space-y-5">
+      <ScreenHeader title="Pengajuan Izin" description="Ajukan ketidakhadiran dan pantau keputusannya." />
 
       {!placementReady ? (
         <EmptyState
@@ -162,36 +141,36 @@ export function SiswaLeavePage() {
       ) : (
         <div className="space-y-3">
           {data.data.requests.map((request) => (
-            <Card key={request.id}>
-              <CardHeader>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <Card key={request.id} className="gap-0 py-0">
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
-                    <CardTitle className="text-base">
-                      {LEAVE_TYPE_LABEL[request.type] ?? request.type}
-                    </CardTitle>
-                    <CardDescription>
-                      {formatDate(request.start_date)} - {formatDate(request.end_date)} - diajukan{" "}
-                      {formatDateTime(request.created_at)}
-                    </CardDescription>
+                    <p className="text-sm font-semibold">{LEAVE_TYPE_LABEL[request.type] ?? request.type}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(request.start_date)} - {formatDate(request.end_date)}
+                    </p>
                   </div>
                   <StatusBadge
-                    label={LEAVE_STATUS_LABEL[request.status as LeaveStatus]}
                     className={LEAVE_STATUS_CLASS[request.status as LeaveStatus]}
+                    label={LEAVE_STATUS_LABEL[request.status as LeaveStatus]}
                   />
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
+
                 <p className="text-sm text-muted-foreground">{request.reason}</p>
 
                 {request.status !== "menunggu" && request.decided_by_name ? (
-                  <div className="rounded-md bg-muted p-3 text-sm">
+                  <div className="rounded-lg bg-muted p-3 text-sm">
                     <p className="mb-1 text-xs font-medium text-muted-foreground">
                       Keputusan {request.decided_by_name}
                       {request.decided_at ? ` - ${formatDateTime(request.decided_at)}` : ""}
                     </p>
                     {request.decision_note ?? "Tanpa catatan tambahan."}
                   </div>
-                ) : null}
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Diajukan {formatDateTime(request.created_at)} - menunggu pembimbing.
+                  </p>
+                )}
 
                 <div className="flex flex-wrap items-center gap-2">
                   <AttachmentLink path={request.attachment_path} name={request.attachment_name} />
@@ -208,78 +187,85 @@ export function SiswaLeavePage() {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Buat Pengajuan</DialogTitle>
-            <DialogDescription>
-              Pengajuan akan dikirim kepada pembimbing Anda untuk disetujui.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={submit}>
+      <Fab
+        label="Buat Pengajuan"
+        icon={Plus}
+        disabled={!placementReady}
+        onClick={() => {
+          setForm(EMPTY)
+          setOpen(true)
+        }}
+      />
+
+      <ResponsiveSheet
+        open={open}
+        onOpenChange={setOpen}
+        title="Buat Pengajuan"
+        description="Pengajuan akan dikirim kepada pembimbing Anda untuk disetujui."
+      >
+        <form className="space-y-4 pb-2" onSubmit={submit}>
+          <Field>
+            <FieldLabel htmlFor="jenis-pengajuan">Jenis</FieldLabel>
+            <NativeSelect
+              id="jenis-pengajuan"
+              value={form.type}
+              onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as LeaveType }))}
+            >
+              <option value="izin">Izin</option>
+              <option value="sakit">Sakit</option>
+              <option value="cuti">Cuti</option>
+            </NativeSelect>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
             <Field>
-              <FieldLabel htmlFor="jenis-pengajuan">Jenis</FieldLabel>
-              <NativeSelect
-                id="jenis-pengajuan"
-                value={form.type}
-                onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as LeaveType }))}
-              >
-                <option value="izin">Izin</option>
-                <option value="sakit">Sakit</option>
-                <option value="cuti">Cuti</option>
-              </NativeSelect>
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="mulai-izin">Tanggal Mulai</FieldLabel>
-                <Input
-                  id="mulai-izin"
-                  type="date"
-                  value={form.start_date}
-                  onChange={(e) => setForm((prev) => ({ ...prev, start_date: e.target.value }))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="selesai-izin">Tanggal Selesai</FieldLabel>
-                <Input
-                  id="selesai-izin"
-                  type="date"
-                  value={form.end_date}
-                  onChange={(e) => setForm((prev) => ({ ...prev, end_date: e.target.value }))}
-                />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="alasan-izin">Alasan</FieldLabel>
-              <Textarea
-                id="alasan-izin"
-                rows={4}
-                value={form.reason}
-                onChange={(e) => setForm((prev) => ({ ...prev, reason: e.target.value }))}
-                placeholder="Jelaskan alasan pengajuan Anda secara singkat dan jelas."
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="bukti-izin">Lampiran Bukti (opsional)</FieldLabel>
+              <FieldLabel htmlFor="mulai-izin">Mulai</FieldLabel>
               <Input
-                id="bukti-izin"
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => setForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
+                id="mulai-izin"
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm((prev) => ({ ...prev, start_date: e.target.value }))}
               />
-              <FieldDescription>Contoh: surat dokter atau surat izin orang tua.</FieldDescription>
             </Field>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Batal
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Mengirim..." : "Kirim Pengajuan"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <Field>
+              <FieldLabel htmlFor="selesai-izin">Selesai</FieldLabel>
+              <Input
+                id="selesai-izin"
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setForm((prev) => ({ ...prev, end_date: e.target.value }))}
+              />
+            </Field>
+          </div>
+          <Field>
+            <FieldLabel htmlFor="alasan-izin">Alasan</FieldLabel>
+            <Textarea
+              id="alasan-izin"
+              rows={4}
+              value={form.reason}
+              onChange={(e) => setForm((prev) => ({ ...prev, reason: e.target.value }))}
+              placeholder="Jelaskan alasan pengajuan Anda secara singkat dan jelas."
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="bukti-izin">Lampiran Bukti (opsional)</FieldLabel>
+            <Input
+              id="bukti-izin"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
+            />
+            <FieldDescription>Contoh: surat dokter atau surat izin orang tua.</FieldDescription>
+          </Field>
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>
+              Batal
+            </Button>
+            <Button type="submit" className="flex-1" disabled={saving}>
+              {saving ? "Mengirim..." : "Kirim"}
+            </Button>
+          </div>
+        </form>
+      </ResponsiveSheet>
     </div>
   )
 }
