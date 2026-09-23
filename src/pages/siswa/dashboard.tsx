@@ -164,7 +164,9 @@ export function SiswaDashboard() {
           tone={todayAttendance?.status === "hadir" ? "positive" : todayAttendance ? "warning" : "default"}
           hint={
             todayAttendance
-              ? `Masuk ${formatTime(todayAttendance.check_in_time)} - Keluar ${formatTime(todayAttendance.check_out_time)}`
+              ? `Masuk ${formatTime(todayAttendance.check_in_time)}${
+                  todayAttendance.address ? ` - ${todayAttendance.address}` : ""
+                }`
               : "Belum ada catatan presensi"
           }
         />

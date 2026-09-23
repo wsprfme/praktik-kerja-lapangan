@@ -218,6 +218,34 @@ export function LeaveDecisionList({ requests, names, loading, error, canDecide, 
       return
     }
     toast.success(decision === "disetujui" ? "Pengajuan disetujui." : "Pengajuan ditolak.")
+    if (decision === "disetujui") {
+      const start = target.start_date.slice(0, 10)
+      const end = target.end_date.slice(0, 10)
+      const { data: existing } = await supabase
+        .from("attendance")
+        .select("id, date")
+        .eq("student_id", target.student_id)
+        .gte("date", start)
+        .lte("date", end)
+      const covered = new Set((existing ?? []).map((row) => row.date))
+      const dayStatus = target.type === "sakit" ? "sakit" : "izin"
+      const rows: { student_id: string; date: string; status: string; note: string }[] = []
+      const cursor = new Date(`${start}T00:00:00`)
+      const last = new Date(`${end}T00:00:00`)
+      while (cursor.getTime() <= last.getTime()) {
+        const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(
+          cursor.getDate(),
+        ).padStart(2, "0")}`
+        const weekday = cursor.getDay() !== 0 && cursor.getDay() !== 6
+        if (weekday && !covered.has(iso)) {
+          rows.push({ student_id: target.student_id, date: iso, status: dayStatus, note: target.reason })
+        }
+        cursor.setDate(cursor.getDate() + 1)
+      }
+      if (rows.length > 0) {
+        await supabase.from("attendance").insert(rows)
+      }
+    }
     setTarget(null)
     setNote("")
     onReload()

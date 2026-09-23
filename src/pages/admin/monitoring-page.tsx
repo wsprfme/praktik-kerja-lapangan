@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAsyncData } from "@/hooks/use-async-data"
 import { fetchAttendance, fetchJournals, fetchStudentOverviews } from "@/lib/queries"
+import { AttachmentLink } from "@/components/student-detail"
 import {
   ATTENDANCE_CLASS,
   ATTENDANCE_LABEL,
@@ -153,18 +154,21 @@ export function AdminMonitoringPage() {
                         <div className="min-w-0 flex-1 text-sm">
                           <p>Pembimbing: {row.supervisor?.full_name ?? "-"}</p>
                           <p className="text-xs text-muted-foreground">
-                            Masuk {formatTime(attendance?.check_in_time ?? null)} - Keluar{" "}
-                            {formatTime(attendance?.check_out_time ?? null)}
+                            Masuk {formatTime(attendance?.check_in_time ?? null)}
+                            {attendance?.address ? ` - ${attendance.address}` : ""}
                           </p>
                         </div>
-                        <StatusBadge
-                          label={attendance ? ATTENDANCE_LABEL[attendance.status as AttendanceStatus] : "Belum Presensi"}
-                          className={
-                            attendance
-                              ? ATTENDANCE_CLASS[attendance.status as AttendanceStatus]
-                              : "bg-muted text-muted-foreground border-border"
-                          }
-                        />
+                        <div className="flex items-center gap-2">
+                          <AttachmentLink path={attendance?.photo_path ?? null} name="Foto" />
+                          <StatusBadge
+                            label={attendance ? ATTENDANCE_LABEL[attendance.status as AttendanceStatus] : "Belum Presensi"}
+                            className={
+                              attendance
+                                ? ATTENDANCE_CLASS[attendance.status as AttendanceStatus]
+                                : "bg-muted text-muted-foreground border-border"
+                            }
+                          />
+                        </div>
                       </div>
                     )
                   })}

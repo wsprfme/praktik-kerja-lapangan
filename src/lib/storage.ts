@@ -20,6 +20,21 @@ export async function uploadStudentFile(
   return { path, name: file.name }
 }
 
+/** Mengunggah foto presensi (sudah diberi cap lokasi dan waktu) ke penyimpanan privat. */
+export async function uploadAttendancePhoto(
+  studentId: string,
+  photo: Blob,
+): Promise<{ path: string; name: string }> {
+  const path = `${studentId}/presensi/${Date.now()}-presensi.jpg`
+  const { error } = await supabase.storage.from(BUCKET).upload(path, photo, {
+    cacheControl: "3600",
+    contentType: "image/jpeg",
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  return { path, name: "Foto presensi" }
+}
+
 export async function getSignedUrl(path: string | null): Promise<string | null> {
   if (!path) return null
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600)

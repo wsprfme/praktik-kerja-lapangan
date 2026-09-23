@@ -121,6 +121,15 @@ export function formatDateTime(value: string | null | undefined): string {
   return `${formatDateShort(value)} ${formatTime(value)}`
 }
 
+export function formatCoordinate(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined,
+): string {
+  if (latitude === null || latitude === undefined) return "-"
+  if (longitude === null || longitude === undefined) return "-"
+  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+}
+
 export function todayISO(): string {
   const now = new Date()
   const offset = now.getTimezoneOffset()

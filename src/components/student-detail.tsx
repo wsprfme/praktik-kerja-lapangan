@@ -24,6 +24,7 @@ import {
   PREDICATE_LABEL,
   REVIEW_CLASS,
   REVIEW_LABEL,
+  formatCoordinate,
   formatDate,
   formatDateTime,
   formatDuration,
@@ -115,14 +116,22 @@ export function StudentDetail({ studentId }: { studentId: string }) {
                   <div>
                     <p className="text-sm font-medium">{formatDate(row.date)}</p>
                     <p className="text-xs text-muted-foreground">
-                      Masuk {formatTime(row.check_in_time)} - Keluar {formatTime(row.check_out_time)}
+                      Masuk {formatTime(row.check_in_time)}
                     </p>
                     {row.note ? <p className="text-xs text-muted-foreground">Catatan: {row.note}</p> : null}
+                    {row.latitude !== null ? (
+                      <p className="text-xs text-muted-foreground">
+                        {row.address ?? "Alamat tidak tersedia"} ({formatCoordinate(row.latitude, row.longitude)})
+                      </p>
+                    ) : null}
                   </div>
-                  <StatusBadge
-                    label={ATTENDANCE_LABEL[row.status as AttendanceStatus]}
-                    className={ATTENDANCE_CLASS[row.status as AttendanceStatus]}
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <AttachmentLink path={row.photo_path} name="Foto" />
+                    <StatusBadge
+                      label={ATTENDANCE_LABEL[row.status as AttendanceStatus]}
+                      className={ATTENDANCE_CLASS[row.status as AttendanceStatus]}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             ))

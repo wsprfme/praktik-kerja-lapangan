@@ -77,6 +77,12 @@ export interface Attendance {
   check_out_time: string | null
   status: AttendanceStatus
   note: string | null
+  photo_path: string | null
+  photo_name: string | null
+  latitude: number | null
+  longitude: number | null
+  address: string | null
+  captured_at: string | null
   recorded_by: string | null
   created_at: string
   updated_at: string
