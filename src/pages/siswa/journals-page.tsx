@@ -193,14 +193,14 @@ export function SiswaJournalsPage() {
         <div className="space-y-3">
           {filtered.map((journal) => (
             <Card key={journal.id}>
-              <CardHeader className="flex-row items-start justify-between gap-4">
-                <div className="min-w-0 space-y-1">
-                  <CardTitle className="text-base">{journal.title}</CardTitle>
-                  <CardDescription>
-                    {formatDate(journal.date)} - {formatDuration(journal.duration_minutes)}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
+              <CardHeader>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div className="min-w-0 space-y-1">
+                    <CardTitle className="text-base">{journal.title}</CardTitle>
+                    <CardDescription>
+                      {formatDate(journal.date)} - {formatDuration(journal.duration_minutes)}
+                    </CardDescription>
+                  </div>
                   <StatusBadge
                     label={REVIEW_LABEL[journal.review_status as ReviewStatus]}
                     className={REVIEW_CLASS[journal.review_status as ReviewStatus]}

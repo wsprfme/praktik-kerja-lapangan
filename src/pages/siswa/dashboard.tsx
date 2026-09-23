@@ -125,8 +125,8 @@ export function SiswaDashboard() {
         />
       ) : (
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
+          <CardHeader>
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-base">Penempatan PKL Saya</CardTitle>
               <CardDescription>
                 {placement?.start_date
@@ -136,7 +136,7 @@ export function SiswaDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Info icon={Building2} label="Perusahaan" value={overview?.company?.name ?? "-"} />
               <Info icon={UserRound} label="Pembimbing" value={overview?.supervisor?.full_name ?? "-"} />
               <Info
@@ -184,14 +184,16 @@ export function SiswaDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">Jurnal Terbaru</CardTitle>
-              <CardDescription>Catatan kegiatan harian Anda.</CardDescription>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Jurnal Terbaru</CardTitle>
+                <CardDescription>Catatan kegiatan harian Anda.</CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-fit">
+                <Link to="/siswa/jurnal">Kelola</Link>
+              </Button>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/siswa/jurnal">Kelola</Link>
-            </Button>
           </CardHeader>
           <CardContent>
             {recentJournals.length === 0 ? (
@@ -220,14 +222,16 @@ export function SiswaDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">Hasil & Pengumuman</CardTitle>
-              <CardDescription>Nilai PKL dan informasi terbaru.</CardDescription>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Hasil & Pengumuman</CardTitle>
+                <CardDescription>Nilai PKL dan informasi terbaru.</CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-fit">
+                <Link to="/siswa/nilai">Nilai</Link>
+              </Button>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/siswa/nilai">Nilai</Link>
-            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border p-4">
@@ -274,19 +278,21 @@ export function SiswaDashboard() {
 
       {leave.length > 0 ? (
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">Pengajuan Terakhir</CardTitle>
-              <CardDescription>Status izin, sakit, atau cuti Anda.</CardDescription>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Pengajuan Terakhir</CardTitle>
+                <CardDescription>Status izin, sakit, atau cuti Anda.</CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-fit">
+                <Link to="/siswa/pengajuan">Kelola</Link>
+              </Button>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/siswa/pengajuan">Kelola</Link>
-            </Button>
           </CardHeader>
           <CardContent>
             <div className="divide-y">
               {leave.slice(0, 3).map((row) => (
-                <div key={row.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div key={row.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
                       {LEAVE_TYPE_LABEL[row.type] ?? row.type} - {formatDate(row.start_date)} s.d.{" "}
@@ -309,11 +315,9 @@ export function SiswaDashboard() {
 
       {attendance.length > 0 ? (
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">Rekap Presensi Saya</CardTitle>
-              <CardDescription>Akumulasi seluruh catatan presensi.</CardDescription>
-            </div>
+          <CardHeader>
+            <CardTitle className="text-base">Rekap Presensi Saya</CardTitle>
+            <CardDescription>Akumulasi seluruh catatan presensi.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             {(Object.keys(ATTENDANCE_LABEL) as AttendanceStatus[]).map((status) => (

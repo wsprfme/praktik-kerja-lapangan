@@ -117,11 +117,9 @@ export function AdminDashboard() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div className="space-y-1.5">
-            <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
-            <CardDescription>Rekap status kehadiran siswa pada {today}.</CardDescription>
-          </div>
+        <CardHeader>
+          <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
+          <CardDescription>Rekap status kehadiran siswa pada {today}.</CardDescription>
         </CardHeader>
         <CardContent>
           {attendance.length === 0 ? (
@@ -141,11 +139,9 @@ export function AdminDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">Sebaran Siswa per Perusahaan</CardTitle>
-              <CardDescription>Jumlah siswa yang ditempatkan di setiap mitra.</CardDescription>
-            </div>
+          <CardHeader>
+            <CardTitle className="text-base">Sebaran Siswa per Perusahaan</CardTitle>
+            <CardDescription>Jumlah siswa yang ditempatkan di setiap mitra.</CardDescription>
           </CardHeader>
           <CardContent>
             {byCompany.length === 0 ? (
@@ -169,14 +165,16 @@ export function AdminDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">Perlu Tindakan</CardTitle>
-              <CardDescription>Siswa yang belum lengkap data penempatannya.</CardDescription>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Perlu Tindakan</CardTitle>
+                <CardDescription>Siswa yang belum lengkap data penempatannya.</CardDescription>
+              </div>
+              <Button asChild size="sm" variant="outline" className="w-fit">
+                <Link to="/admin/penempatan">Kelola</Link>
+              </Button>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/admin/penempatan">Kelola</Link>
-            </Button>
           </CardHeader>
           <CardContent>
             {notPlaced.length === 0 ? (

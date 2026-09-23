@@ -111,11 +111,9 @@ export function PembimbingDashboard() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <div className="space-y-1.5">
-                  <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
-                  <CardDescription>{formatDate(today)}</CardDescription>
-                </div>
+              <CardHeader>
+                <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
+                <CardDescription>{formatDate(today)}</CardDescription>
               </CardHeader>
               <CardContent>
                 {attendance.length === 0 ? (
@@ -147,14 +145,16 @@ export function PembimbingDashboard() {
             </Card>
 
             <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <div className="space-y-1.5">
-                  <CardTitle className="text-base">Perlu Tindakan</CardTitle>
-                  <CardDescription>Jurnal dan pengajuan yang menunggu Anda.</CardDescription>
+              <CardHeader>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1.5">
+                    <CardTitle className="text-base">Perlu Tindakan</CardTitle>
+                    <CardDescription>Jurnal dan pengajuan yang menunggu Anda.</CardDescription>
+                  </div>
+                  <Button asChild size="sm" variant="outline" className="w-fit">
+                    <Link to="/pembimbing/jurnal">Tinjau</Link>
+                  </Button>
                 </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link to="/pembimbing/jurnal">Tinjau</Link>
-                </Button>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div>
@@ -201,17 +201,19 @@ export function PembimbingDashboard() {
           </div>
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <div className="space-y-1.5">
-                <CardTitle className="text-base">Progres Siswa Bimbingan</CardTitle>
-                <CardDescription>Status penempatan dan jumlah jurnal per siswa.</CardDescription>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-base">Progres Siswa Bimbingan</CardTitle>
+                  <CardDescription>Status penempatan dan jumlah jurnal per siswa.</CardDescription>
+                </div>
+                <Button asChild size="sm" variant="outline" className="w-fit">
+                  <Link to="/pembimbing/siswa">
+                    <ClipboardList />
+                    Detail
+                  </Link>
+                </Button>
               </div>
-              <Button asChild size="sm" variant="outline">
-                <Link to="/pembimbing/siswa">
-                  <ClipboardList />
-                  Detail
-                </Link>
-              </Button>
             </CardHeader>
             <CardContent>
               <div className="divide-y">

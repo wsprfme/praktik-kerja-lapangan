@@ -163,20 +163,22 @@ export function SiswaLeavePage() {
         <div className="space-y-3">
           {data.data.requests.map((request) => (
             <Card key={request.id}>
-              <CardHeader className="flex-row items-start justify-between gap-4">
-                <div className="min-w-0 space-y-1">
-                  <CardTitle className="text-base">
-                    {LEAVE_TYPE_LABEL[request.type] ?? request.type}
-                  </CardTitle>
-                  <CardDescription>
-                    {formatDate(request.start_date)} - {formatDate(request.end_date)} - diajukan{" "}
-                    {formatDateTime(request.created_at)}
-                  </CardDescription>
+              <CardHeader>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div className="min-w-0 space-y-1">
+                    <CardTitle className="text-base">
+                      {LEAVE_TYPE_LABEL[request.type] ?? request.type}
+                    </CardTitle>
+                    <CardDescription>
+                      {formatDate(request.start_date)} - {formatDate(request.end_date)} - diajukan{" "}
+                      {formatDateTime(request.created_at)}
+                    </CardDescription>
+                  </div>
+                  <StatusBadge
+                    label={LEAVE_STATUS_LABEL[request.status as LeaveStatus]}
+                    className={LEAVE_STATUS_CLASS[request.status as LeaveStatus]}
+                  />
                 </div>
-                <StatusBadge
-                  label={LEAVE_STATUS_LABEL[request.status as LeaveStatus]}
-                  className={LEAVE_STATUS_CLASS[request.status as LeaveStatus]}
-                />
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">{request.reason}</p>
