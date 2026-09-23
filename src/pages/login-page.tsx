@@ -1,15 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import {
-  CalendarCheck,
-  GraduationCap,
-  Loader2,
-  LockKeyhole,
-  Mail,
-  NotebookPen,
-  ShieldCheck,
-  Users,
-} from "lucide-react"
+import { GraduationCap, Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -33,24 +24,6 @@ import { supabase } from "@/lib/supabase"
 import { ROLE_HOME } from "@/lib/format"
 import { translateAuthError } from "@/lib/password"
 import type { Profile } from "@/lib/types"
-
-const HIGHLIGHTS = [
-  {
-    icon: CalendarCheck,
-    title: "Presensi berfoto",
-    description: "Kehadiran tercatat lengkap dengan waktu dan lokasi.",
-  },
-  {
-    icon: NotebookPen,
-    title: "Jurnal harian",
-    description: "Kegiatan PKL direkap rapi dan siap dinilai.",
-  },
-  {
-    icon: Users,
-    title: "Pemantauan pembimbing",
-    description: "Pembimbing dan Admin memantau perkembangan siswa.",
-  },
-]
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -120,78 +93,32 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-svh lg:grid-cols-[1.1fr_1fr]">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-primary p-12 text-primary-foreground lg:flex">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,--alpha(var(--primary-foreground)/14%),transparent_55%),radial-gradient(circle_at_85%_85%,--alpha(var(--primary-foreground)/10%),transparent_50%)]"
-        />
+    <div className="relative flex min-h-svh flex-col bg-muted/40">
+      <div aria-hidden className="h-1.5 w-full bg-primary" />
 
-        <div className="relative flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-primary-foreground/15 ring-1 ring-primary-foreground/20">
-            <GraduationCap className="size-5" />
-          </span>
-          <div className="leading-tight">
-            <p className="font-semibold">Manajemen PKL</p>
-            <p className="text-xs text-primary-foreground/70">
-              Sistem Informasi Praktik Kerja Lapangan
-            </p>
-          </div>
-        </div>
-
-        <div className="relative max-w-md space-y-8">
-          <div className="space-y-3">
-            <h2 className="text-3xl leading-tight font-semibold tracking-tight text-balance">
-              Selamat datang kembali.
-            </h2>
-            <p className="text-sm text-primary-foreground/75">
-              Masuk untuk melanjutkan kegiatan Praktik Kerja Lapangan Anda.
-            </p>
-          </div>
-
-          <ul className="space-y-5">
-            {HIGHLIGHTS.map((item) => (
-              <li key={item.title} className="flex items-start gap-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-foreground/12 ring-1 ring-primary-foreground/15">
-                  <item.icon className="size-4" />
-                </span>
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="text-xs text-primary-foreground/70">
-                    {item.description}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="relative text-xs text-primary-foreground/60">
-          Akun dibuat dan dikelola oleh Admin sekolah.
-        </p>
+      <div className="absolute top-5 right-5">
+        <ModeToggle />
       </div>
 
-      <div className="relative flex items-center justify-center bg-muted/40 p-6">
-        <div className="absolute top-4 right-4">
-          <ModeToggle />
-        </div>
-
-        <div className="w-full max-w-sm space-y-6">
-          <div className="flex items-center gap-3 lg:hidden">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <GraduationCap className="size-5" />
+      <div className="flex flex-1 items-center justify-center px-6 py-10">
+        <div className="w-full max-w-md space-y-8">
+          <div className="flex flex-col items-center space-y-4 text-center">
+            <span className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground ring-8 ring-primary/10">
+              <GraduationCap className="size-8" />
             </span>
-            <div className="leading-tight">
-              <p className="font-semibold">Manajemen PKL</p>
-              <p className="text-xs text-muted-foreground">
-                Sistem Informasi Praktik Kerja Lapangan
+            <div className="space-y-1.5">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Portal Manajemen PKL
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Praktik Kerja Lapangan
               </p>
             </div>
           </div>
 
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-2xl">Masuk ke akun Anda</CardTitle>
+              <CardTitle className="text-xl">Masuk ke akun Anda</CardTitle>
               <CardDescription>
                 Gunakan email dan kata sandi yang diberikan sekolah.
               </CardDescription>
@@ -256,10 +183,14 @@ export function LoginPage() {
 
               <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="size-3.5" />
-                Akses terbatas untuk siswa, pembimbing, dan Admin.
+                Akses terbatas untuk siswa
               </p>
             </CardContent>
           </Card>
+
+          <p className="text-center text-xs text-muted-foreground">
+            Sistem Informasi Manajemen Praktik Kerja Lapangan
+          </p>
         </div>
       </div>
     </div>
