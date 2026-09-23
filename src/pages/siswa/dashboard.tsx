@@ -15,6 +15,7 @@ import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import { useAsyncData } from "@/hooks/use-async-data"
 import {
   fetchAnnouncements,
@@ -203,7 +204,7 @@ export function SiswaDashboard() {
             ) : (
               <div className="divide-y">
                 {recentJournals.map((journal) => (
-                  <div key={journal.id} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div key={journal.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{journal.title}</p>
                       <p className="text-xs text-muted-foreground">
@@ -211,8 +212,8 @@ export function SiswaDashboard() {
                       </p>
                     </div>
                     <StatusBadge
+                      className={cn("shrink-0", REVIEW_CLASS[journal.review_status as ReviewStatus])}
                       label={REVIEW_LABEL[journal.review_status as ReviewStatus]}
-                      className={REVIEW_CLASS[journal.review_status as ReviewStatus]}
                     />
                   </div>
                 ))}
@@ -233,25 +234,18 @@ export function SiswaDashboard() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg border p-4">
+          <CardContent className="space-y-3">
+            <div className="rounded-lg border px-3 py-2">
               {assessment && assessment.final_score !== null ? (
-                <>
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <p className="text-lg font-semibold">{assessment.final_score}</p>
                   <p className="text-xs text-muted-foreground">Nilai Akhir</p>
-                  <p className="text-2xl font-semibold">
-                    {assessment.final_score}
-                    {assessment.predicate ? (
-                      <span className="ml-2 text-sm font-normal text-muted-foreground">
-                        {assessment.predicate} - {PREDICATE_LABEL[assessment.predicate]}
-                      </span>
-                    ) : null}
-                  </p>
-                  {assessment.assessed_by_name ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Dinilai oleh {assessment.assessed_by_name}
-                    </p>
+                  {assessment.predicate ? (
+                    <span className="text-xs text-muted-foreground">
+                      ({assessment.predicate} - {PREDICATE_LABEL[assessment.predicate]})
+                    </span>
                   ) : null}
-                </>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Nilai belum diisi oleh pembimbing.</p>
               )}
@@ -261,13 +255,13 @@ export function SiswaDashboard() {
               <p className="text-sm text-muted-foreground">Belum ada pengumuman.</p>
             ) : (
               <ul className="divide-y">
-                {announcements.slice(0, 3).map((announcement) => (
+                {announcements.slice(0, 2).map((announcement) => (
                   <li key={announcement.id} className="py-3 first:pt-0 last:pb-0">
                     <div className="flex items-center gap-2">
                       <Megaphone className="size-3.5 shrink-0 text-muted-foreground" />
-                      <p className="text-sm font-medium">{announcement.title}</p>
+                      <p className="truncate text-sm font-medium">{announcement.title}</p>
                     </div>
-                    <p className="mt-0.5 line-clamp-2 pl-[22px] text-xs text-muted-foreground">{announcement.body}</p>
+                    <p className="mt-0.5 line-clamp-1 pl-[22px] text-xs text-muted-foreground">{announcement.body}</p>
                   </li>
                 ))}
               </ul>
