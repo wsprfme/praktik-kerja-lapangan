@@ -104,22 +104,24 @@ export function AdminDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Siswa Aktif" value={activeStudents.length} icon={GraduationCap} hint={`${students.length} total siswa`} />
-        <StatCard label="Pembimbing" value={supervisors.filter((s) => s.is_active).length} icon={UserCheck} tone="info" hint={`${supervisors.length} total pembimbing`} />
-        <StatCard label="Perusahaan Mitra" value={activeCompanies.length} icon={Building2} hint={`${companies.length} total perusahaan`} />
-        <StatCard label="Periode PKL" value={periods.length} icon={CalendarDays} />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Hadir Hari Ini" value={presentToday} icon={UserCheck} tone="positive" />
         <StatCard label="Belum Presensi" value={Math.max(0, notCheckedIn)} icon={XCircle} tone={notCheckedIn > 0 ? "warning" : "positive"} />
-        <StatCard label="Jurnal Menunggu" value={pendingJournals} icon={ClipboardList} tone={pendingJournals > 0 ? "warning" : "positive"} />
         <StatCard label="Pengajuan Menunggu" value={leave.length} icon={ClipboardList} tone={leave.length > 0 ? "warning" : "positive"} />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Pembimbing" value={supervisors.filter((s) => s.is_active).length} icon={UserCheck} tone="info" hint={`${supervisors.length} total`} />
+        <StatCard label="Perusahaan Mitra" value={activeCompanies.length} icon={Building2} hint={`${companies.length} total`} />
+        <StatCard label="Jurnal Menunggu" value={pendingJournals} icon={ClipboardList} tone={pendingJournals > 0 ? "warning" : "positive"} />
+        <StatCard label="Periode PKL" value={periods.length} icon={CalendarDays} />
+      </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
-          <CardDescription>Rekap status kehadiran siswa pada {today}.</CardDescription>
+        <CardHeader className="flex-row items-center justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
+            <CardDescription>Rekap status kehadiran siswa pada {today}.</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           {attendance.length === 0 ? (
@@ -139,24 +141,26 @@ export function AdminDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Sebaran Siswa per Perusahaan</CardTitle>
-            <CardDescription>Jumlah siswa yang ditempatkan di setiap mitra.</CardDescription>
+          <CardHeader className="flex-row items-center justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base">Sebaran Siswa per Perusahaan</CardTitle>
+              <CardDescription>Jumlah siswa yang ditempatkan di setiap mitra.</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             {byCompany.length === 0 ? (
               <p className="text-sm text-muted-foreground">Belum ada penempatan siswa.</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y">
                 {byCompany.map((row) => (
-                  <li key={row.company.id} className="flex items-center justify-between gap-3">
+                  <li key={row.company.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{row.company.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {row.company.field_of_work ?? "Bidang kerja belum diisi"}
                       </p>
                     </div>
-                    <span className="text-sm font-semibold">{row.total} siswa</span>
+                    <span className="shrink-0 text-sm font-semibold">{row.total} siswa</span>
                   </li>
                 ))}
               </ul>
@@ -180,9 +184,9 @@ export function AdminDashboard() {
                 Semua siswa sudah memiliki perusahaan dan pembimbing.
               </p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y">
                 {notPlaced.slice(0, 6).map((row) => (
-                  <li key={row.profile.id} className="flex items-center justify-between gap-3">
+                  <li key={row.profile.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{row.profile.full_name}</p>
                       <p className="truncate text-xs text-muted-foreground">

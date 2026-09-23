@@ -111,9 +111,11 @@ export function PembimbingDashboard() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
-                <CardDescription>{formatDate(today)}</CardDescription>
+              <CardHeader className="flex-row items-center justify-between">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-base">Presensi Hari Ini</CardTitle>
+                  <CardDescription>{formatDate(today)}</CardDescription>
+                </div>
               </CardHeader>
               <CardContent>
                 {attendance.length === 0 ? (
@@ -123,7 +125,7 @@ export function PembimbingDashboard() {
                     {attendance.map((row) => {
                       const student = overviews.find((o) => o.profile.id === row.student_id)
                       return (
-                        <div key={row.id} className="flex items-center justify-between gap-3 py-3">
+                        <div key={row.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">
                               {student?.profile.full_name ?? "Siswa"}
@@ -154,7 +156,7 @@ export function PembimbingDashboard() {
                   <Link to="/pembimbing/jurnal">Tinjau</Link>
                 </Button>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
                 <div>
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Belum Presensi ({notCheckedIn.length})
@@ -162,9 +164,9 @@ export function PembimbingDashboard() {
                   {notCheckedIn.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Semua siswa sudah presensi hari ini.</p>
                   ) : (
-                    <ul className="space-y-1 text-sm">
+                    <ul className="divide-y">
                       {notCheckedIn.slice(0, 4).map((row) => (
-                        <li key={row.profile.id}>{row.profile.full_name}</li>
+                        <li key={row.profile.id} className="py-2 text-sm first:pt-0 last:pb-0">{row.profile.full_name}</li>
                       ))}
                     </ul>
                   )}
@@ -176,11 +178,11 @@ export function PembimbingDashboard() {
                   {leave.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Tidak ada pengajuan menunggu.</p>
                   ) : (
-                    <ul className="space-y-2">
+                    <ul className="divide-y">
                       {leave.slice(0, 4).map((row) => {
                         const student = overviews.find((o) => o.profile.id === row.student_id)
                         return (
-                          <li key={row.id} className="flex items-center justify-between gap-2 text-sm">
+                          <li key={row.id} className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
                             <span className="truncate">
                               {student?.profile.full_name ?? "Siswa"} - {LEAVE_TYPE_LABEL[row.type] ?? row.type}
                             </span>
@@ -211,21 +213,23 @@ export function PembimbingDashboard() {
                 </Link>
               </Button>
             </CardHeader>
-            <CardContent className="divide-y">
-              {overviews.map((row) => {
-                const journalCount = journals.filter((j) => j.student_id === row.profile.id).length
-                return (
-                  <div key={row.profile.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="font-medium">{row.profile.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.company?.name ?? "Tanpa perusahaan"} - {row.detail?.class_name ?? "-"}
-                      </p>
+            <CardContent>
+              <div className="divide-y">
+                {overviews.map((row) => {
+                  const journalCount = journals.filter((j) => j.student_id === row.profile.id).length
+                  return (
+                    <div key={row.profile.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="font-medium">{row.profile.full_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.company?.name ?? "Tanpa perusahaan"} - {row.detail?.class_name ?? "-"}
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{journalCount} jurnal</p>
                     </div>
-                    <p className="text-sm text-muted-foreground">{journalCount} jurnal</p>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </CardContent>
           </Card>
         </>

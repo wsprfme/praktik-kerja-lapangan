@@ -13,11 +13,11 @@ async function queryPermission(name: PermissionName): Promise<PermissionState> {
   }
 }
 
-/** Memantau izin kamera dan lokasi, serta memintanya satu per satu. */
 export function useCapturePermissions() {
   const [camera, setCamera] = useState<PermissionState>("unknown")
   const [location, setLocation] = useState<PermissionState>("unknown")
   const [requesting, setRequesting] = useState(false)
+  const [step, setStep] = useState<"idle" | "camera" | "location">("idle")
 
   const refresh = useCallback(async () => {
     const [cameraState, locationState] = await Promise.all([
@@ -32,9 +32,43 @@ export function useCapturePermissions() {
     void refresh()
   }, [refresh])
 
-  const request = useCallback(async () => {
+  const requestCamera = useCallback(async () => {
+    setRequesting(true)
+    setStep("camera")
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCamera("denied")
+        return
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      stream.getTracks().forEach((track) => track.stop())
+      setCamera("granted")
+    } catch {
+      setCamera("denied")
+    } finally {
+      setRequesting(false)
+      setStep("idle")
+    }
+  }, [])
+
+  const requestLocation = useCallback(async () => {
+    setRequesting(true)
+    setStep("location")
+    try {
+      await getCurrentPosition()
+      setLocation("granted")
+    } catch {
+      setLocation("denied")
+    } finally {
+      setRequesting(false)
+      setStep("idle")
+    }
+  }, [])
+
+  const requestAll = useCallback(async () => {
     setRequesting(true)
     try {
+      setStep("camera")
       if (!navigator.mediaDevices?.getUserMedia) {
         setCamera("denied")
       } else {
@@ -47,6 +81,9 @@ export function useCapturePermissions() {
         }
       }
 
+      await new Promise((r) => setTimeout(r, 300))
+
+      setStep("location")
       try {
         await getCurrentPosition()
         setLocation("granted")
@@ -55,8 +92,18 @@ export function useCapturePermissions() {
       }
     } finally {
       setRequesting(false)
+      setStep("idle")
     }
   }, [])
 
-  return { camera, location, requesting, request, refresh }
+  return {
+    camera,
+    location,
+    requesting,
+    step,
+    requestCamera,
+    requestLocation,
+    request: requestAll,
+    refresh,
+  }
 }

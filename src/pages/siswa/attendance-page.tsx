@@ -432,10 +432,31 @@ export function SiswaAttendancePage() {
                       Absen
                     </Button>
                   ) : (
-                    <Button onClick={() => void permissions.request()} disabled={permissions.requesting}>
-                      <ShieldAlert />
-                      {permissions.requesting ? "Meminta izin..." : "Aktifkan Kamera & Lokasi"}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      {permissions.camera !== "granted" && (
+                        <Button
+                          onClick={() => void permissions.requestCamera()}
+                          disabled={permissions.requesting}
+                        >
+                          <Camera />
+                          {permissions.step === "camera"
+                            ? "Meminta izin kamera..."
+                            : "Aktifkan Kamera"}
+                        </Button>
+                      )}
+                      {permissions.location !== "granted" && (
+                        <Button
+                          variant={permissions.camera === "granted" ? "default" : "outline"}
+                          onClick={() => void permissions.requestLocation()}
+                          disabled={permissions.requesting}
+                        >
+                          <MapPin />
+                          {permissions.step === "location"
+                            ? "Meminta izin lokasi..."
+                            : "Aktifkan Lokasi"}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

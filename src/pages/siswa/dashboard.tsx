@@ -125,8 +125,15 @@ export function SiswaDashboard() {
         />
       ) : (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Penempatan PKL Saya</CardTitle>
+          <CardHeader className="flex-row items-center justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base">Penempatan PKL Saya</CardTitle>
+              <CardDescription>
+                {placement?.start_date
+                  ? `Total durasi ${daysBetween(placement.start_date, placement.end_date!)} hari kalender`
+                  : "Data penempatan"}
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,11 +154,6 @@ export function SiswaDashboard() {
                 value={remainingDays === null ? "-" : `${remainingDays} hari`}
               />
             </dl>
-            {placement?.start_date && placement?.end_date ? (
-              <p className="mt-4 text-xs text-muted-foreground">
-                Total durasi PKL {daysBetween(placement.start_date, placement.end_date)} hari kalender.
-              </p>
-            ) : null}
           </CardContent>
         </Card>
       )}
@@ -199,7 +201,7 @@ export function SiswaDashboard() {
             ) : (
               <div className="divide-y">
                 {recentJournals.map((journal) => (
-                  <div key={journal.id} className="flex items-start justify-between gap-3 py-3">
+                  <div key={journal.id} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{journal.title}</p>
                       <p className="text-xs text-muted-foreground">
@@ -254,14 +256,14 @@ export function SiswaDashboard() {
             {announcements.length === 0 ? (
               <p className="text-sm text-muted-foreground">Belum ada pengumuman.</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y">
                 {announcements.slice(0, 3).map((announcement) => (
-                  <li key={announcement.id} className="space-y-1">
+                  <li key={announcement.id} className="py-3 first:pt-0 last:pb-0">
                     <div className="flex items-center gap-2">
-                      <Megaphone className="size-3.5 text-muted-foreground" />
+                      <Megaphone className="size-3.5 shrink-0 text-muted-foreground" />
                       <p className="text-sm font-medium">{announcement.title}</p>
                     </div>
-                    <p className="line-clamp-2 text-xs text-muted-foreground">{announcement.body}</p>
+                    <p className="mt-0.5 line-clamp-2 pl-[22px] text-xs text-muted-foreground">{announcement.body}</p>
                   </li>
                 ))}
               </ul>
@@ -281,33 +283,37 @@ export function SiswaDashboard() {
               <Link to="/siswa/pengajuan">Kelola</Link>
             </Button>
           </CardHeader>
-          <CardContent className="divide-y">
-            {leave.slice(0, 3).map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">
-                    {LEAVE_TYPE_LABEL[row.type] ?? row.type} - {formatDate(row.start_date)} s.d.{" "}
-                    {formatDate(row.end_date)}
-                  </p>
-                  {row.decision_note ? (
-                    <p className="text-xs text-muted-foreground">{row.decision_note}</p>
-                  ) : null}
+          <CardContent>
+            <div className="divide-y">
+              {leave.slice(0, 3).map((row) => (
+                <div key={row.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {LEAVE_TYPE_LABEL[row.type] ?? row.type} - {formatDate(row.start_date)} s.d.{" "}
+                      {formatDate(row.end_date)}
+                    </p>
+                    {row.decision_note ? (
+                      <p className="text-xs text-muted-foreground">{row.decision_note}</p>
+                    ) : null}
+                  </div>
+                  <StatusBadge
+                    label={LEAVE_STATUS_LABEL[row.status as LeaveStatus]}
+                    className={LEAVE_STATUS_CLASS[row.status as LeaveStatus]}
+                  />
                 </div>
-                <StatusBadge
-                  label={LEAVE_STATUS_LABEL[row.status as LeaveStatus]}
-                  className={LEAVE_STATUS_CLASS[row.status as LeaveStatus]}
-                />
-              </div>
-            ))}
+              ))}
+            </div>
           </CardContent>
         </Card>
       ) : null}
 
       {attendance.length > 0 ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Rekap Presensi Saya</CardTitle>
-            <CardDescription>Akumulasi seluruh catatan presensi.</CardDescription>
+          <CardHeader className="flex-row items-center justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base">Rekap Presensi Saya</CardTitle>
+              <CardDescription>Akumulasi seluruh catatan presensi.</CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             {(Object.keys(ATTENDANCE_LABEL) as AttendanceStatus[]).map((status) => (
