@@ -31,5 +31,6 @@ npm start              # http://localhost:3101
 - Volume `backend-volume-8npV` → mount `/data` (SQLite + uploads).
 - **Auto-deploy**: setiap push ke branch `main` yang mengubah `server/**`
   (watch pattern `/server/**`) akan memicu build otomatis.
+  Trigger Railway: `c00b97ce-84bb-4c67-aa1d-a67dcae1283d`.
 - Healthcheck: `/api/health`.
 - Deploy manual darurat: `railway up server --path-as-root --service backend --detach`.
