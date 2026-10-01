@@ -7,6 +7,46 @@ Satu repo, dua service Railway:
 | `frontend` | `/` (root repo) | Railpack (default) | Railpack mendeteksi Vite → `npm run build` → `dist/` disajikan **Caddy otomatis** |
 | `backend` | `server` | Railpack (default) | Deteksi Node → `npm ci` → `npm start` (`node index.js`) |
 
+## Status deploy saat ini (via Railway CLI)
+
+| Item | Nilai |
+|---|---|
+| Frontend | `https://frontend-production-6107.up.railway.app` |
+| Backend | `https://backend-production-0047.up.railway.app` |
+| Region | `asia-southeast1` (Singapura) |
+| Volume backend | `backend-volume-8npV` → mount `/data` (SQLite + uploads) |
+| Admin awal | `admin@smkn1bmr.sch.id` |
+
+### Cara update / deploy ulang
+
+```bash
+# Frontend (dari root repo)
+railway up --service frontend --detach
+
+# Backend (folder server sebagai root build — flag --path-as-root WAJIB)
+railway up server --path-as-root --service backend --detach
+```
+
+Lihat status & log:
+
+```bash
+railway service status --service backend --json
+railway logs --service backend --deployment --lines 50
+railway logs --service frontend --build --lines 100
+```
+
+### Catatan penting hasil deploy (Railway CLI v5.63.1)
+
+- `railway up <subfolder>` **wajib** `--path-as-root`, kalau tidak error `prefix not found` (bug prefix arsip CLI).
+- Plan trial/Hobby hanya boleh **1 region**. Kalau service punya 2 region (`multiRegionConfig`), deploy langsung `FAILED` dengan `configErrors` dan **tanpa build**. Rapikan dengan: `railway service scale --service <nama> sfo=0` (atau region lain `=0`).
+- Volume terikat region. Pindah region service = volume lama tidak ikut; buat volume baru (data lama harus dimigrasi dulu).
+- `railway service restart` tidak didukung untuk deployment CLI (`Deployment is not restartable`); gunakan `railway service redeploy --service <nama> --yes` atau `railway up` lagi.
+- Akses isi volume (`railway volume files ...`) butuh SSH key terdaftar: `railway ssh keys add`.
+- Healthcheck path (`/api/health` backend, `/health` frontend) dan restart policy diatur di dashboard (tidak ada flag CLI-nya).
+
+> Langkah-langkah dashboard di bawah tetap bisa dipakai sebagai alternatif (mis. kalau ingin auto-deploy dari GitHub).
+
+
 Karena builder default Railway (Railpack) sudah menangani keduanya, **tidak perlu Dockerfile / Caddyfile / railway.json**:
 
 - Frontend otomatis dapat: `/health`, kompresi gzip+zstd, fallback SPA (`try_files` → `index.html`), header `X-Content-Type-Options: nosniff`.
