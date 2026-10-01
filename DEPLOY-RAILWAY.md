@@ -27,6 +27,19 @@ railway up --service frontend --detach
 railway up server --path-as-root --service backend --detach
 ```
 
+### Auto-deploy dari GitHub
+
+Service terhubung ke repo `wsprfme/praktik-kerja-lapangan` branch `main` lewat deployment trigger:
+
+| Service | Trigger ID | Watch pattern | Efek |
+|---|---|---|---|
+| `backend` | `c00b97ce-84bb-4c67-aa1d-a67dcae1283d` | `/server/**` | push yang menyentuh `server/**` → backend build & deploy |
+| `frontend` | `6b37043e-d425-4098-968f-973f014645e6` | `**` kecuali `!/server/**` | push file lain (mis. `src/**`, `index.html`) → frontend deploy |
+
+- Deployment yang tidak cocok pattern tetap tercatat dengan status `SKIPPED`.
+- Prasyarat (sudah beres): GitHub App **railway-app** ter-install di akun `wsprfme` dengan akses ke repo ini.
+- Deploy manual darurat tetap bisa memakai perintah `railway up` di atas.
+
 Lihat status & log:
 
 ```bash
