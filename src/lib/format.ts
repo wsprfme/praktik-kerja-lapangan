@@ -86,39 +86,73 @@ const MONTH_NAMES = [
   "Desember",
 ]
 
+/** Zona waktu aplikasi: seluruh tanggal/waktu ditampilkan dalam WIB (Asia/Jakarta). */
+export const APP_TIMEZONE = "Asia/Jakarta"
+
+const WIB_PARTS = new Intl.DateTimeFormat("id-ID", {
+  timeZone: APP_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+})
+
+/** Pecah nilai ISO menjadi bagian tanggal/jam dalam WIB. */
+function wibParts(value: string): Record<string, string> | null {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return Object.fromEntries(WIB_PARTS.formatToParts(date).map((p) => [p.type, p.value]))
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "-"
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return "-"
-  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`
+  const p = wibParts(`${value.slice(0, 10)}T00:00:00+07:00`)
+  if (!p) return "-"
+  const month = MONTH_NAMES[Number(p.month) - 1] ?? value
+  return `${Number(p.day)} ${month} ${p.year}`
 }
 
 export function formatDateShort(value: string | null | undefined): string {
   if (!value) return "-"
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return "-"
-  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`
+  const p = wibParts(`${value.slice(0, 10)}T00:00:00+07:00`)
+  if (!p) return "-"
+  return `${p.day}/${p.month}/${p.year}`
 }
 
 export function formatDayName(value: string | null | undefined): string {
   if (!value) return "-"
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+  // (fix) Pakai tengah malam UTC agar getUTCDay tepat = tanggal kalender.
+  // Versi lama (+07:00) mundur ke H-1 17:00 UTC sehingga selalu geser sehari.
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`)
   if (Number.isNaN(date.getTime())) return "-"
-  return DAY_NAMES[date.getDay()]
+  return DAY_NAMES[date.getUTCDay()]
+}
+
+/** True bila tanggal YYYY-MM-DD jatuh pada hari Minggu (libur mingguan). */
+export function isSunday(value: string | null | undefined): boolean {
+  if (!value) return false
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return false
+  return date.getUTCDay() === 0
 }
 
 export function formatTime(value: string | null | undefined): string {
   if (!value) return "-"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "-"
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+  const p = wibParts(value)
+  if (!p) return "-"
+  return `${p.hour}:${p.minute}`
 }
 
+/** Waktu lengkap "24 Sep 2026, 08:15 WIB". */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "-"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "-"
-  return `${formatDateShort(value)} ${formatTime(value)}`
+  const p = wibParts(value)
+  if (!p) return "-"
+  const month = MONTH_NAMES[Number(p.month) - 1] ?? p.month
+  return `${Number(p.day)} ${month} ${p.year}, ${p.hour}:${p.minute} WIB`
 }
 
 export function formatCoordinate(
@@ -131,9 +165,15 @@ export function formatCoordinate(
 }
 
 export function todayISO(): string {
-  const now = new Date()
-  const offset = now.getTimezoneOffset()
-  return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10)
+  const p = wibParts(new Date().toISOString())
+  return p ? `${p.year}-${p.month}-${p.day}` : new Date().toISOString().slice(0, 10)
+}
+
+/** Geser tanggal YYYY-MM-DD sejauh n hari (negatif = mundur, mis. kemarin = -1). */
+export function shiftISODate(value: string, days: number): string {
+  const t = new Date(`${value.slice(0, 10)}T00:00:00Z`).getTime()
+  if (Number.isNaN(t)) return value
+  return new Date(t + days * 86400000).toISOString().slice(0, 10)
 }
 
 export function monthLabel(monthKey: string): string {
@@ -149,17 +189,17 @@ export function currentMonthKey(): string {
 
 export function lastMonthKeys(count: number): string[] {
   const keys: string[] = []
-  const base = new Date(`${currentMonthKey()}-01T00:00:00`)
+  const base = new Date(`${currentMonthKey()}-01T00:00:00Z`)
   for (let i = count - 1; i >= 0; i -= 1) {
-    const d = new Date(base.getFullYear(), base.getMonth() - i, 1)
-    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() - i, 1))
+    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`)
   }
   return keys
 }
 
 export function daysBetween(start: string, end: string): number {
-  const a = new Date(`${start.slice(0, 10)}T00:00:00`).getTime()
-  const b = new Date(`${end.slice(0, 10)}T00:00:00`).getTime()
+  const a = new Date(`${start.slice(0, 10)}T00:00:00+07:00`).getTime()
+  const b = new Date(`${end.slice(0, 10)}T00:00:00+07:00`).getTime()
   if (Number.isNaN(a) || Number.isNaN(b)) return 0
   return Math.max(0, Math.round((b - a) / 86400000) + 1)
 }

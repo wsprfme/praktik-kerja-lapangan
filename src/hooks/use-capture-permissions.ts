@@ -3,10 +3,10 @@ import { getCurrentPosition } from "@/lib/geolocation"
 
 export type PermissionState = "unknown" | "prompt" | "granted" | "denied"
 
-async function queryPermission(name: PermissionName): Promise<PermissionState> {
+async function queryPermission(name: "camera" | "geolocation"): Promise<PermissionState> {
   try {
     if (!navigator.permissions?.query) return "unknown"
-    const status = await navigator.permissions.query({ name })
+    const status = await navigator.permissions.query({ name } as PermissionDescriptor)
     return status.state as PermissionState
   } catch {
     return "unknown"
@@ -21,7 +21,7 @@ export function useCapturePermissions() {
 
   const refresh = useCallback(async () => {
     const [cameraState, locationState] = await Promise.all([
-      queryPermission("camera" as PermissionName),
+      queryPermission("camera"),
       queryPermission("geolocation"),
     ])
     if (cameraState !== "unknown") setCamera(cameraState)
@@ -40,7 +40,10 @@ export function useCapturePermissions() {
         setCamera("denied")
         return
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      // (m9) Minta kamera depan secara eksplisit agar izin tidak jatuh ke kamera belakang.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+      })
       stream.getTracks().forEach((track) => track.stop())
       setCamera("granted")
     } catch {
@@ -73,7 +76,10 @@ export function useCapturePermissions() {
         setCamera("denied")
       } else {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+          // (m9) Kamera depan eksplisit, sama seperti requestCamera.
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" },
+          })
           stream.getTracks().forEach((track) => track.stop())
           setCamera("granted")
         } catch {

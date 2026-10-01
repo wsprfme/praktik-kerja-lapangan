@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { useGeopoint } from "@/hooks/use-geopoint"
 import { formatCoordinate, formatDate, formatTime, todayISO } from "@/lib/format"
-import type { Geopoint } from "@/lib/geolocation"
+import { ACCURACY_GOOD, accuracyLabel, type Geopoint } from "@/lib/geolocation"
 
 export interface AttendanceEvidence {
   blob: Blob
@@ -103,7 +103,7 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("Gagal menyusun gambar"))),
       "image/jpeg",
-      0.9,
+      0.72,
     )
   })
 }
@@ -182,11 +182,27 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit, submitL
             <RotateCcw />
             Ulangi Foto
           </Button>
-          <Button onClick={() => onSubmit(preview)} disabled={busy || !point}>
+          <Button
+            onClick={() => onSubmit(preview)}
+            disabled={busy || !point || point.accuracy > ACCURACY_GOOD}
+            title={
+              !point
+                ? "Tunggu lokasi terbaca."
+                : point.accuracy > ACCURACY_GOOD
+                  ? `Akurasi lokasi ${Math.round(point.accuracy)} m belum cukup. Tunggu GPS stabil atau pindah ke area terbuka.`
+                  : undefined
+            }
+          >
             {busy ? <Loader2 className="animate-spin" /> : <Send />}
             {busy ? busyLabel : submitLabel}
           </Button>
         </div>
+        {point && point.accuracy > ACCURACY_GOOD ? (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Akurasi lokasi saat ini {Math.round(point.accuracy)} m ({accuracyLabel(point.accuracy)}).
+            Tunggu hingga &lt; {ACCURACY_GOOD} m atau pindah ke dekat jendela/area terbuka sebelum mengirim.
+          </p>
+        ) : null}
       </div>
     )
   }
@@ -208,7 +224,7 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit, submitL
             muted
             autoPlay
             className="size-full object-cover"
-            data-facing={facing}
+            data-facing="user"
           />
           {starting || cameraError ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-foreground/80 px-4 text-center text-background">
@@ -254,13 +270,20 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit, submitL
 
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
+    // Downscale besar ke max 1024px agar hemat disk (target ~100-150KB/foto).
+    const MAX_DIM = 1024
+    const scale = Math.min(1, MAX_DIM / Math.max(canvas.width, canvas.height))
+    const outW = Math.round(canvas.width * scale)
+    const outH = Math.round(canvas.height * scale)
+    canvas.width = outW
+    canvas.height = outH
     const ctx = canvas.getContext("2d")
     if (!ctx) {
       setCameraError("Gambar tidak dapat diproses di perangkat ini.")
       return
     }
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(video, 0, 0, outW, outH)
 
     const now = new Date()
     const stamp = `${formatDate(todayISO())} ${formatTime(now.toISOString())}`
@@ -273,7 +296,7 @@ export function AttendanceCapture({ busy, busyLabel, onCancel, onSubmit, submitL
 
     try {
       const blob = await canvasToBlob(canvas)
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.9)
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.72)
       setPreview({ blob, dataUrl, geopoint: point })
     } catch {
       setCameraError("Gambar tidak dapat disimpan. Silakan coba lagi.")
@@ -309,10 +332,10 @@ function GeoSummary({
   }
 
   return (
-    <dl className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
-      <div className="space-y-0.5">
+    <dl className="grid gap-3 rounded-lg border p-3 sm:grid-cols-4">
+      <div className="space-y-0.5 sm:col-span-2">
         <dt className="text-xs text-muted-foreground">Alamat</dt>
-        <dd className="text-xs font-medium">
+        <dd className="text-xs font-medium break-words leading-relaxed">
           {point.address ?? (resolvingAddress ? "Mencari alamat..." : "Alamat tidak tersedia")}
         </dd>
       </div>
@@ -323,7 +346,19 @@ function GeoSummary({
         </dd>
       </div>
       <div className="space-y-0.5">
-        <dt className="text-xs text-muted-foreground">Waktu</dt>
+        <dt className="text-xs text-muted-foreground">Akurasi GPS</dt>
+        <dd
+          className={
+            point.accuracy <= ACCURACY_GOOD
+              ? "text-xs font-medium text-emerald-700 dark:text-emerald-400"
+              : "text-xs font-medium text-amber-700 dark:text-amber-400"
+          }
+        >
+          ±{Math.round(point.accuracy)} m ({accuracyLabel(point.accuracy)})
+        </dd>
+      </div>
+      <div className="space-y-0.5 sm:col-span-4">
+        <dt className="text-xs text-muted-foreground">Waktu (WIB)</dt>
         <dd className="text-xs font-medium">{formatTime(point.capturedAt)}</dd>
       </div>
     </dl>

@@ -11,7 +11,7 @@ import {
   parseISO,
 } from "date-fns"
 
-import type { StudentOverview, Attendance, Journal, LeaveRequest, AttendanceStatus } from "@/lib/types"
+import type { StudentOverview, Attendance, Journal, LeaveRequest, Assessment, AttendanceStatus } from "@/lib/types"
 import {
   formatDate,
   formatTime,
@@ -190,6 +190,74 @@ export async function exportAttendanceReport(
   buildIzinSheet(workbook, leaveRequests, sMap)
 
   return workbook
+}
+
+/* ------------------------------------------------------------------ */
+/*  exportAdminFullReport — admin: rekap + detail + jurnal + izin + nilai */
+/* ------------------------------------------------------------------ */
+
+export interface AdminFullReportParams extends AttendanceReportParams {
+  assessments: Assessment[]
+}
+
+export async function exportAdminFullReport(
+  params: AdminFullReportParams,
+): Promise<ExcelJS.Workbook> {
+  const workbook = await exportAttendanceReport(params)
+  buildPenilaianSheet(workbook, params.students, params.assessments)
+  return workbook
+}
+
+function buildPenilaianSheet(
+  workbook: ExcelJS.Workbook,
+  students: StudentOverview[],
+  assessments: Assessment[],
+): void {
+  const sheet = workbook.addWorksheet("Penilaian")
+
+  const headers = [
+    "Nama Siswa",
+    "NISN",
+    "Kelas",
+    "Jurusan",
+    "Kehadiran",
+    "Jurnal",
+    "Kedisiplinan",
+    "Kompetensi",
+    "Sikap",
+    "Nilai Akhir",
+    "Predikat",
+    "Catatan",
+  ]
+  const headerRow = sheet.addRow(headers)
+  styleHeaderRow(headerRow)
+
+  const map = new Map(assessments.map((a) => [a.student_id, a]))
+  for (const s of students) {
+    const a = map.get(s.profile.id)
+    const row = sheet.addRow([
+      s.profile.full_name,
+      s.detail?.nisn ?? "-",
+      s.detail?.class_name ?? "-",
+      s.detail?.major ?? "-",
+      a?.score_attendance ?? "-",
+      a?.score_journal ?? "-",
+      a?.score_discipline ?? "-",
+      a?.score_competence ?? "-",
+      a?.score_attitude ?? "-",
+      a?.final_score ?? "-",
+      a?.predicate ?? "-",
+      a?.notes ?? "-",
+    ])
+    styleDataRow(row)
+  }
+
+  sheet.autoFilter = {
+    from: { row: headerRow.number, column: 1 },
+    to: { row: headerRow.number, column: headers.length },
+  }
+
+  autoWidth(sheet)
 }
 
 /* ------------------------------------------------------------------ */

@@ -61,7 +61,7 @@ export function PembimbingReportsPage() {
       ])
 
       const periodLabel = data.data[0]?.period?.name ?? "PKL"
-      const workbook = exportAttendanceReport({
+      const workbook = await exportAttendanceReport({
         students: data.data,
         attendance: allAttendance as Attendance[],
         journals: allJournals,

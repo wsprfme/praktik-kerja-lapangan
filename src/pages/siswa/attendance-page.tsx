@@ -3,12 +3,14 @@ import {
   CalendarCheck,
   Camera,
   CheckCircle2,
+  ChevronDown,
   Clock,
   FileText,
   LogIn,
   LogOut,
   MapPin,
   MessageCircle,
+  RefreshCw,
   ShieldAlert,
   Stethoscope,
   XCircle,
@@ -16,9 +18,10 @@ import {
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { AttendanceCapture, type AttendanceEvidence } from "@/components/attendance-capture"
-import { AttachmentLink } from "@/components/student-detail"
+import { StudentAttachmentLink } from "@/components/file-viewer"
 import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
 import { ResponsiveSheet, ScreenHeader } from "@/components/mobile-ui"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { StatusBadge } from "@/components/status-badge"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -31,20 +34,31 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
 import { useCapturePermissions } from "@/hooks/use-capture-permissions"
 import { fetchAttendance, fetchHolidays, fetchLeaveRequests, fetchStudentOverview } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
+import { api, listPaged } from "@/lib/api"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { uploadAttendancePhoto, uploadStudentFile } from "@/lib/storage"
 import {
   ATTENDANCE_CLASS,
   ATTENDANCE_LABEL,
   LEAVE_STATUS_CLASS,
   LEAVE_STATUS_LABEL,
+  LEAVE_TYPE_LABEL,
   formatCoordinate,
   formatDate,
   formatDayName,
   formatTime,
+  isSunday,
+  shiftISODate,
   todayISO,
 } from "@/lib/format"
-import type { AttendanceStatus, LeaveRequest, LeaveStatus, LeaveType } from "@/lib/types"
+import type { Attendance, AttendanceStatus, LeaveRequest, LeaveStatus, LeaveType } from "@/lib/types"
 
 type Step = "idle" | "choose" | "capture" | "leave" | "checkout"
 
@@ -66,12 +80,18 @@ function whatsappNumber(raw: string | null | undefined): string | null {
 export function SiswaAttendancePage() {
   const { profile } = useAuth()
   const today = todayISO()
+  const yesterday = shiftISODate(today, -1)
   const permissions = useCapturePermissions()
 
   const [step, setStep] = useState<Step>("idle")
+  // Lipat/bentang kartu status agar muat di HP kecil.
+  const [statusOpen, setStatusOpen] = useState(true)
+  // Baris presensi target presensi keluar (hari ini atau susulan kemarin).
+  const [checkoutRow, setCheckoutRow] = useState<Attendance | null>(null)
   const [leaveForm, setLeaveForm] = useState<LeaveForm>({ type: "izin", reason: "", file: null })
   const [busy, setBusy] = useState(false)
   const [consult, setConsult] = useState<{ type: LeaveType; status: LeaveStatus } | null>(null)
+  const [historyPage, setHistoryPage] = useState(1)
 
   const data = useAsyncData(
     async () => {
@@ -86,6 +106,27 @@ export function SiswaAttendancePage() {
     },
     { overview: null, attendance: [], holidays: [], leave: [] },
     [profile?.id],
+  )
+
+  const history = useAsyncData(
+    () =>
+      profile
+        ? listPaged<Attendance>("attendance", { student_id: profile.id, page: historyPage }, 15)
+        : Promise.resolve({
+            rows: [] as Attendance[],
+            total: 0,
+            page: 1,
+            pageSize: 15,
+            totalPages: 1,
+          }),
+    {
+      rows: [] as Attendance[],
+      total: 0,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    },
+    [profile?.id, historyPage],
   )
 
   if (data.loading) {
@@ -110,7 +151,24 @@ export function SiswaAttendancePage() {
   const placement = overview?.placement ?? null
   const placementReady = placement && overview?.company && overview?.supervisor && placement.status === "aktif"
   const todayHoliday = holidays.find((h) => h.date === today)
+  const todayIsSunday = isSunday(today)
   const todayRow = attendance.find((a) => a.date === today) ?? null
+  // Susulan: kemarin hadir tapi belum presensi keluar.
+  const yesterdayRow = attendance.find((a) => a.date === yesterday) ?? null
+  const needsCheckout =
+    yesterdayRow !== null &&
+    yesterdayRow.status === "hadir" &&
+    !yesterdayRow.check_out_time
+  // Ringkasan satu baris saat kartu status dilipat.
+  const todaySummary = !todayRow
+    ? ""
+    : todayRow.status === "hadir"
+      ? `Masuk ${formatTime(todayRow.check_in_time)} • ${
+          todayRow.check_out_time
+            ? `Keluar ${formatTime(todayRow.check_out_time)}`
+            : "Belum presensi keluar"
+        }`
+      : ATTENDANCE_LABEL[todayRow.status as AttendanceStatus]
 
   const todayLeave =
     leave.find(
@@ -130,62 +188,79 @@ export function SiswaAttendancePage() {
   ].filter(Boolean) as string[]
 
   const reload = () => data.reload()
+  // (m7) Refresh manual untuk data harian yang mungkin basi.
+  const refreshAll = () => {
+    void data.reload()
+    void history.reload()
+    setStep("idle")
+    toast.success("Data presensi diperbarui.")
+  }
 
   const recordPresent = async (evidence: AttendanceEvidence) => {
     if (!profile) return
     setBusy(true)
     try {
-      const uploaded = await uploadAttendancePhoto(profile.id, evidence.blob)
       const point = evidence.geopoint
+      if (!point) {
+        toast.error("Lokasi belum terbaca. Silakan coba lagi.")
+        setBusy(false)
+        return
+      }
+      const uploaded = await uploadAttendancePhoto(profile.id, evidence.blob)
+      // (m3) Jam TIDAK dikirim dari klien; server mencatat waktu WIB sebagai sumber kebenaran.
       const payload = {
-        check_in_time: new Date().toISOString(),
         status: "hadir" as AttendanceStatus,
         note: null,
         photo_path: uploaded.path,
         photo_name: uploaded.name,
-        latitude: point?.latitude ?? null,
-        longitude: point?.longitude ?? null,
-        address: point?.address ?? null,
-        captured_at: point?.capturedAt ?? new Date().toISOString(),
+        latitude: point.latitude,
+        longitude: point.longitude,
+        address: point.address,
+        captured_at: point.capturedAt,
       }
-      const { error } = todayRow
-        ? await supabase.from("attendance").update(payload).eq("id", todayRow.id)
-        : await supabase.from("attendance").insert({ ...payload, student_id: profile.id, date: today })
-      if (error) throw new Error(error.message)
+      if (todayRow) {
+        await api.update("attendance", todayRow.id, payload)
+      } else {
+        await api.create("attendance", { ...payload, student_id: profile.id, date: today })
+      }
       toast.success("Presensi berhasil dicatat.")
       setStep("idle")
       reload()
-    } catch {
-      toast.error("Gagal menyimpan presensi. Silakan coba lagi.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan presensi. Silakan coba lagi.")
     } finally {
       setBusy(false)
     }
   }
 
   const recordCheckout = async (evidence: AttendanceEvidence) => {
-    if (!profile || !todayRow) return
+    const target = checkoutRow ?? todayRow
+    if (!profile || !target) return
     setBusy(true)
     try {
-      const uploaded = await uploadAttendancePhoto(profile.id, evidence.blob)
       const point = evidence.geopoint
-      const { error } = await supabase
-        .from("attendance")
-        .update({
-          check_out_time: new Date().toISOString(),
-          check_out_photo_path: uploaded.path,
-          check_out_photo_name: uploaded.name,
-          check_out_latitude: point?.latitude ?? null,
-          check_out_longitude: point?.longitude ?? null,
-          check_out_address: point?.address ?? null,
-          check_out_captured_at: point?.capturedAt ?? new Date().toISOString(),
-        })
-        .eq("id", todayRow.id)
-      if (error) throw new Error(error.message)
+      if (!point) {
+        toast.error("Lokasi belum terbaca. Silakan coba lagi.")
+        setBusy(false)
+        return
+      }
+      const uploaded = await uploadAttendancePhoto(profile.id, evidence.blob)
+      // (m3) `check_out_time: "now"` -> server mengisi jam WIB.
+      await api.update("attendance", target.id, {
+        check_out_time: "now",
+        check_out_photo_path: uploaded.path,
+        check_out_photo_name: uploaded.name,
+        check_out_latitude: point.latitude,
+        check_out_longitude: point.longitude,
+        check_out_address: point.address,
+        check_out_captured_at: point.capturedAt,
+      })
       toast.success("Presensi keluar berhasil dicatat.")
+      setCheckoutRow(null)
       setStep("idle")
       reload()
-    } catch {
-      toast.error("Gagal menyimpan presensi keluar. Silakan coba lagi.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan presensi keluar. Silakan coba lagi.")
     } finally {
       setBusy(false)
     }
@@ -209,7 +284,7 @@ export function SiswaAttendancePage() {
         attachmentName = uploaded.name
       }
 
-      const { error } = await supabase.from("leave_requests").insert({
+      await api.create("leave", {
         student_id: profile.id,
         type: leaveForm.type,
         start_date: today,
@@ -219,27 +294,24 @@ export function SiswaAttendancePage() {
         attachment_name: attachmentName,
         status: "menunggu",
       })
-      if (error) throw new Error(error.message)
 
       setConsult({ type: leaveForm.type, status: "menunggu" })
       setLeaveForm({ type: leaveForm.type, reason: "", file: null })
       setStep("idle")
       toast.success("Pengajuan terkirim. Menunggu persetujuan pembimbing.")
       reload()
-    } catch {
-      toast.error("Gagal mengirim pengajuan. Silakan coba lagi.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengirim pengajuan. Silakan coba lagi.")
     } finally {
       setBusy(false)
     }
   }
 
   const cancelLeave = async (request: LeaveRequest) => {
-    const { error } = await supabase
-      .from("leave_requests")
-      .update({ status: "dibatalkan" })
-      .eq("id", request.id)
-    if (error) {
-      toast.error("Gagal membatalkan pengajuan.")
+    try {
+      await api.update("leave", request.id, { status: "dibatalkan" })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membatalkan pengajuan.")
       return
     }
     setConsult(null)
@@ -268,6 +340,12 @@ export function SiswaAttendancePage() {
       <ScreenHeader
         title="Presensi"
         description={`${formatDayName(today)}, ${formatDate(today)}`}
+        action={
+          <Button variant="outline" size="sm" onClick={refreshAll} disabled={data.loading}>
+            <RefreshCw className={data.loading ? "animate-spin" : undefined} />
+            Perbarui
+          </Button>
+        }
       />
 
       {!placementReady ? (
@@ -287,46 +365,119 @@ export function SiswaAttendancePage() {
             </Card>
           ) : null}
 
+          {todayIsSunday ? (
+            <Card className="gap-0 border-sky-500/30 bg-sky-500/5 py-0">
+              <CardContent className="p-4 text-sm">
+                Hari ini <strong>Minggu</strong> — presensi tidak wajib. Lewati saja bila Anda
+                libur, tetap absen seperti biasa bila Anda bertugas.
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {needsCheckout && yesterdayRow ? (
+            <Card className="gap-0 border-amber-500/30 bg-amber-500/5 py-0">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">Kemarin belum presensi keluar</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDayName(yesterday)}, {formatDate(yesterday)} — masuk{" "}
+                    {formatTime(yesterdayRow.check_in_time)}. Lengkapi maksimal hari ini.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    setCheckoutRow(yesterdayRow)
+                    setStep("checkout")
+                  }}
+                >
+                  <LogOut />
+                  Lengkapi
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card className="gap-0 py-0">
             <CardContent className="space-y-4 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 space-y-0.5">
                   <p className="text-sm font-semibold">Status hari ini</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {overview?.company?.name ?? "-"}
+                    {todayRow && !statusOpen ? todaySummary : (overview?.company?.name ?? "-")}
                   </p>
                 </div>
-                {todayRow ? (
-                  <StatusBadge
-                    label={ATTENDANCE_LABEL[todayRow.status as AttendanceStatus]}
-                    className={ATTENDANCE_CLASS[todayRow.status as AttendanceStatus]}
-                  />
-                ) : null}
+                <div className="flex shrink-0 items-center gap-1">
+                  {todayRow ? (
+                    <StatusBadge
+                      label={ATTENDANCE_LABEL[todayRow.status as AttendanceStatus]}
+                      className={ATTENDANCE_CLASS[todayRow.status as AttendanceStatus]}
+                    />
+                  ) : null}
+                  {todayRow ? (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={statusOpen ? "Ciutkan rincian" : "Bentangkan rincian"}
+                      onClick={() => setStatusOpen((v) => !v)}
+                    >
+                      <ChevronDown
+                        className={cn("transition-transform", !statusOpen && "-rotate-90")}
+                      />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
 
+              <Collapsible open={!todayRow || statusOpen}>
+                <CollapsibleContent className="space-y-4">
               {todayRow ? (
                 <RecordedSummary
                   row={todayRow}
                   leave={todayLeave}
                   consultation={consultPanel}
-                  onCheckout={() => setStep("checkout")}
+                  onCheckout={() => {
+                    setCheckoutRow(todayRow)
+                    setStep("checkout")
+                  }}
                   permissionsReady={permissionsReady}
                 />
-              ) : todayLeave ? (
+              ) : todayHoliday ? (
                 <div className="space-y-4">
-                  <Alert>
-                    <FileText />
-                    <AlertTitle>
-                      Pengajuan {todayLeave.type === "sakit" ? "sakit" : "izin"} menunggu persetujuan
-                    </AlertTitle>
-                    <AlertDescription>
-                      Presensi hari ini akan tercatat setelah pembimbing menyetujui pengajuan Anda.
-                    </AlertDescription>
-                  </Alert>
-                  {consultPanel}
+                  <div className="flex flex-col items-center gap-3 rounded-xl bg-muted/60 px-4 py-6 text-center">
+                    <span className="flex size-14 items-center justify-center rounded-full bg-background">
+                      <CalendarCheck className="size-6 text-muted-foreground" />
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Tidak ada presensi hari ini</p>
+                      <p className="text-xs text-muted-foreground">
+                        Hari libur — presensi tidak diwajibkan. Jika Anda bertugas, hubungi admin.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {/* (fix) Pengajuan menunggu/tidak disetujui tidak lagi memblokir
+                      tombol Absen — presensi tetap bisa dicatat seperti biasa. */}
+                  {todayLeave ? (
+                    <>
+                      <Alert>
+                        <FileText />
+                        <AlertTitle>
+                          Pengajuan {LEAVE_TYPE_LABEL[todayLeave.type] ?? todayLeave.type} —{" "}
+                          {LEAVE_STATUS_LABEL[todayLeave.status as LeaveStatus].toLowerCase()}
+                        </AlertTitle>
+                        <AlertDescription>
+                          {todayLeave.status === "menunggu"
+                            ? "Anda tetap bisa presensi seperti biasa. Baris izin/sakit otomatis dibuat bila pengajuan disetujui."
+                            : "Anda tetap bisa presensi seperti biasa hari ini."}
+                        </AlertDescription>
+                      </Alert>
+                      {consultPanel}
+                    </>
+                  ) : null}
                   <div className="flex flex-col items-center gap-3 rounded-xl bg-muted/60 py-6 text-center">
                     <span className="flex size-14 items-center justify-center rounded-full bg-background">
                       <Camera className="size-6 text-muted-foreground" />
@@ -334,7 +485,7 @@ export function SiswaAttendancePage() {
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Belum ada presensi hari ini</p>
                         <p className="text-xs text-muted-foreground">
-                          Foto selfie beserta lokasi dan waktu untuk kehadiran.
+                          Ambil foto selfie + lokasi untuk mencatat kehadiran.
                         </p>
                     </div>
                   </div>
@@ -406,6 +557,8 @@ export function SiswaAttendancePage() {
                   )}
                 </div>
               )}
+                </CollapsibleContent>
+              </Collapsible>
             </CardContent>
           </Card>
 
@@ -413,40 +566,113 @@ export function SiswaAttendancePage() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between gap-3 pb-1">
                 <p className="text-sm font-semibold">Riwayat presensi</p>
-                <span className="text-xs text-muted-foreground">{attendance.length} catatan</span>
+                <span className="text-xs text-muted-foreground">{history.data.total} catatan</span>
               </div>
-              {attendance.length === 0 ? (
+              {history.loading ? (
+                <p className="pt-2 text-sm text-muted-foreground">Memuat riwayat...</p>
+              ) : history.error ? (
+                <div className="space-y-2 pt-2">
+                  <p className="text-sm text-destructive">{history.error}</p>
+                  <Button size="sm" variant="outline" onClick={history.reload}>
+                    Coba lagi
+                  </Button>
+                </div>
+              ) : history.data.rows.length === 0 ? (
                 <p className="pt-2 text-sm text-muted-foreground">Belum ada riwayat presensi.</p>
               ) : (
-                <div className="divide-y">
-                  {attendance.map((row) => (
-                    <div key={row.id} className="flex items-start justify-between gap-3 py-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium">{formatDate(row.date)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Masuk {formatTime(row.check_in_time)}
-                          {row.check_out_time ? ` - Keluar ${formatTime(row.check_out_time)}` : ""}
-                          {row.note ? ` - ${row.note}` : ""}
-                        </p>
-                        {row.address || row.latitude !== null ? (
-                          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                            <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                            <span className="line-clamp-2 min-w-0">
-                              {row.address ?? "Alamat tidak tersedia"}
-                            </span>
+                <>
+                  <div className="divide-y">
+                    {history.data.rows.map((row) => (
+                      <div key={row.id} className="flex items-start justify-between gap-3 py-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-sm font-medium">{formatDate(row.date)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Masuk {formatTime(row.check_in_time)}
+                            {row.check_out_time ? ` - Keluar ${formatTime(row.check_out_time)}` : ""}
+                            {row.note ? ` - ${row.note}` : ""}
                           </p>
-                        ) : null}
+                          {row.address || row.latitude !== null ? (
+                            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                              <span className="line-clamp-2 min-w-0">
+                                {row.address ?? "Alamat tidak tersedia"}
+                              </span>
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <StatusBadge
+                            label={ATTENDANCE_LABEL[row.status as AttendanceStatus]}
+                            className={ATTENDANCE_CLASS[row.status as AttendanceStatus]}
+                          />
+                          <StudentAttachmentLink path={row.photo_path} name={row.photo_name} />
+                          {row.check_out_photo_path ? (
+                            <StudentAttachmentLink
+                              path={row.check_out_photo_path}
+                              name={row.check_out_photo_name}
+                              label="Foto Keluar"
+                            />
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        <StatusBadge
-                          label={ATTENDANCE_LABEL[row.status as AttendanceStatus]}
-                          className={ATTENDANCE_CLASS[row.status as AttendanceStatus]}
-                        />
-                        <AttachmentLink path={row.photo_path} name={row.photo_name} />
-                      </div>
+                    ))}
+                  </div>
+                  {history.data.totalPages > 1 ? (
+                    <div className="space-y-2 pt-3">
+                      <p className="text-center text-xs text-muted-foreground">
+                        Halaman {historyPage} dari {history.data.totalPages} — {history.data.total}{" "}
+                        catatan
+                      </p>
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                if (historyPage > 1) setHistoryPage(historyPage - 1)
+                              }}
+                              aria-disabled={historyPage <= 1}
+                              className={
+                                historyPage <= 1 ? "pointer-events-none opacity-50" : undefined
+                              }
+                            />
+                          </PaginationItem>
+                          {historyPageNumbers(historyPage, history.data.totalPages).map((p) => (
+                            <PaginationItem key={p}>
+                              <PaginationLink
+                                href="#"
+                                isActive={p === historyPage}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  setHistoryPage(p)
+                                }}
+                              >
+                                {p}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                if (historyPage < history.data.totalPages)
+                                  setHistoryPage(historyPage + 1)
+                              }}
+                              aria-disabled={historyPage >= history.data.totalPages}
+                              className={
+                                historyPage >= history.data.totalPages
+                                  ? "pointer-events-none opacity-50"
+                                  : undefined
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
                     </div>
-                  ))}
-                </div>
+                  ) : null}
+                </>
               )}
             </CardContent>
           </Card>
@@ -465,16 +691,18 @@ export function SiswaAttendancePage() {
               ? "Presensi Keluar"
               : step === "leave"
                 ? `Pengajuan ${leaveForm.type === "izin" ? "Izin" : "Sakit"}`
-                : "Pilih Keterangan Kehadiran"
+                : "Catat Presensi"
         }
         description={
           step === "capture"
             ? "Foto selfie untuk presensi masuk dengan lokasi dan waktu."
             : step === "checkout"
-              ? "Foto selfie untuk presensi keluar dengan lokasi dan waktu."
+              ? checkoutRow && checkoutRow.date !== today
+                ? `Foto selfie untuk melengkapi presensi keluar tanggal ${formatDate(checkoutRow.date)}.`
+                : "Foto selfie untuk presensi keluar dengan lokasi dan waktu."
               : step === "leave"
                 ? `Pengajuan dikirim ke pembimbing ${supervisorName ?? "-"}.`
-                : "Pilih Hadir untuk mengirim foto, atau Izin/Sakit bila berhalangan."
+                : "Ketuk Hadir untuk absen masuk, atau Izin/Sakit bila berhalangan."
         }
       >
         {step === "capture" ? (
@@ -590,8 +818,17 @@ export function SiswaAttendancePage() {
   )
 }
 
-function permissionLabel(state: string): string {
-  if (state === "granted") return "sudah diizinkan"
+function historyPageNumbers(page: number, totalPages: number): number[] {
+  const total = Math.max(1, totalPages)
+  const current = Math.min(Math.max(1, page), total)
+  const start = Math.max(1, Math.min(current - 2, total - 4))
+  const end = Math.min(total, start + 4)
+  const pages: number[] = []
+  for (let p = Math.max(1, end - 4); p <= end; p++) pages.push(p)
+  return pages
+}
+
+function permissionLabel(state: string): string {  if (state === "granted") return "sudah diizinkan"
   if (state === "denied") return "ditolak"
   if (state === "prompt") return "belum diminta"
   return "belum diketahui"
@@ -678,7 +915,7 @@ function ConsultationPanel({
             Nomor WhatsApp pembimbing belum tersedia. Silakan hubungi Admin.
           </p>
         )}
-        {request ? <AttachmentLink path={request.attachment_path} name={request.attachment_name} /> : null}
+        {request ? <StudentAttachmentLink path={request.attachment_path} name={request.attachment_name} /> : null}
         {request && request.status === "menunggu" && onCancel ? (
           <Button size="sm" variant="ghost" onClick={onCancel}>
             <XCircle />
@@ -757,7 +994,7 @@ function RecordedSummary({
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <MapPin className="size-3.5" /> Alamat Masuk
           </p>
-          <p className="text-sm">{row.address ?? "Alamat tidak tersedia"}</p>
+          <p className="text-sm break-words">{row.address ?? "Alamat tidak tersedia"}</p>
         </div>
 
         {hasCheckout ? (
@@ -765,14 +1002,14 @@ function RecordedSummary({
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="size-3.5" /> Alamat Keluar
             </p>
-            <p className="text-sm">{row.check_out_address ?? "Alamat tidak tersedia"}</p>
+            <p className="text-sm break-words">{row.check_out_address ?? "Alamat tidak tersedia"}</p>
           </div>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <AttachmentLink path={row.photo_path} name={row.photo_name} label="Foto Masuk" />
+          <StudentAttachmentLink path={row.photo_path} name={row.photo_name} label="Foto Masuk" />
           {hasCheckout ? (
-            <AttachmentLink path={row.check_out_photo_path} name={row.check_out_photo_name} label="Foto Keluar" />
+            <StudentAttachmentLink path={row.check_out_photo_path} name={row.check_out_photo_name} label="Foto Keluar" />
           ) : null}
         </div>
 

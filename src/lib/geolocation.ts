@@ -1,10 +1,17 @@
 export interface Geopoint {
   latitude: number
   longitude: number
+  /** Radius akurasi dalam meter. <= ACCURACY_GOOD dianggap dapat diandalkan. */
   accuracy: number
   address: string | null
+  /** Waktu pengambilan koordinat (ISO). */
   capturedAt: string
 }
+
+/** Ambang akurasi "baik" (meter) untukQD considers presensi dapat di trusting. */
+export const ACCURACY_GOOD = 50
+/** Ambang akurasi "buruk" (meter) di atas ini koordinat ditolak. */
+export const ACCURACY_POOR = 200
 
 const GEO_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
@@ -22,52 +29,87 @@ function toGeopoint(position: GeolocationPosition): Geopoint {
   }
 }
 
+/**
+ * Ambil koordinat terbaik yang tersedia.
+ * -_memprioritaskan fix dengan accuracy <= ACCURACY_GOOD
+ * - Menunggu maks. 8 detik sambil rewatch
+ * - Selalu membersihkan watch & timer di semua jalur keluar (m2: tidak ada leak)
+ */
 export function getCurrentPosition(options: PositionOptions = GEO_OPTIONS): Promise<Geopoint> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("Perangkat tidak mendukung layanan lokasi."))
       return
     }
-    let resolved = false
+
+    let settled = false
+    let watchId: number | null = null
     const attempts: GeolocationPosition[] = []
 
-    const timer = setTimeout(() => {
-      if (resolved) return
-      resolved = true
-      if (attempts.length > 0) {
-        attempts.sort((a, b) => a.coords.accuracy - b.coords.accuracy)
-        resolve(toGeopoint(attempts[0]))
-      } else {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(toGeopoint(pos)),
-          (err) => {
-            const message =
-              err.code === err.PERMISSION_DENIED
-                ? "Izin lokasi ditolak."
-                : "Lokasi belum dapat dibaca. Pastikan GPS aktif."
-            reject(new Error(message))
-          },
-          { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
-        )
-      }
-    }, 4000)
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        attempts.push(pos)
-        if (pos.coords.accuracy <= 30 && !resolved) {
-          resolved = true
-          clearTimeout(timer)
+    const cleanup = () => {
+      if (timer !== null) clearTimeout(timer)
+      if (watchId !== null) {
+        try {
           navigator.geolocation.clearWatch(watchId)
-          resolve(toGeopoint(pos))
+        } catch {
+          /* abaikan */
         }
-      },
-      () => {},
-      options,
-    )
+        watchId = null
+      }
+    }
+
+    const finish = (point: Geopoint) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(point)
+    }
+
+    const fail = (message: string) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(new Error(message))
+    }
+
+    const timer = setTimeout(() => {
+      if (attempts.length > 0) {
+        // Ambil yang paling akurat meski belum ideal.
+        attempts.sort((a, b) => a.coords.accuracy - b.coords.accuracy)
+        finish(toGeopoint(attempts[0]))
+      } else {
+        // Fallback low-accuracy sekali lagi.
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => finish(toGeopoint(pos)),
+            () => fail("Lokasi belum dapat dibaca. Pastikan GPS aktif dan coba di dekat jendela."),
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+          )
+        } catch {
+          fail("Lokasi belum dapat dibaca. Pastikan GPS aktif dan coba di dekat jendela.")
+        }
+      }
+    }, 8000)
+
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (settled) return
+          attempts.push(pos)
+          if (pos.coords.accuracy <= ACCURACY_GOOD) finish(toGeopoint(pos))
+        },
+        () => {
+          /* biarkan: akan jatuh ke timeout/fallback */
+        },
+        options,
+      )
+    } catch {
+      fail("Lokasi belum dapat dibaca. Pastikan GPS aktif.")
+    }
   })
 }
 
+/** Watch berkelanjutan; mengembalikan handle untuk clearWatch(). */
 export function watchPosition(
   onUpdate: (point: Geopoint) => void,
   onError?: (message: string) => void,
@@ -84,35 +126,16 @@ export function watchPosition(
 }
 
 export function clearWatch(watchId: number): void {
-  navigator.geolocation?.clearWatch(watchId)
+  try {
+    navigator.geolocation?.clearWatch(watchId)
+  } catch {
+    /* abaikan */
+  }
 }
 
-const addressCache = new Map<string, string | null>()
-
-/** Mengubah koordinat menjadi alamat memakai layanan peta gratis OpenStreetMap. */
-export async function reverseGeocode(
-  latitude: number,
-  longitude: number,
-): Promise<string | null> {
-  const key = `${latitude.toFixed(5)},${longitude.toFixed(5)}`
-  if (addressCache.has(key)) return addressCache.get(key) ?? null
-
-  try {
-    const url = new URL("https://nominatim.openstreetmap.org/reverse")
-    url.searchParams.set("format", "jsonv2")
-    url.searchParams.set("lat", String(latitude))
-    url.searchParams.set("lon", String(longitude))
-    url.searchParams.set("zoom", "18")
-    url.searchParams.set("addressdetails", "1")
-
-    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } })
-    if (!response.ok) throw new Error("Gagal membaca alamat")
-    const payload = (await response.json()) as { display_name?: string }
-    const address = payload.display_name?.trim() || null
-    addressCache.set(key, address)
-    return address
-  } catch {
-    addressCache.set(key, null)
-    return null
-  }
+/** Deskripsi singkat akurasi untuk ditampilkan ke pengguna. */
+export function accuracyLabel(accuracy: number): string {
+  if (accuracy <= ACCURACY_GOOD) return "Sangat akurat"
+  if (accuracy <= ACCURACY_POOR) return "Cukup akurat"
+  return "Kurang akurat"
 }

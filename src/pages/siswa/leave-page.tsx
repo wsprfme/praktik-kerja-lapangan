@@ -2,7 +2,7 @@ import { useState } from "react"
 import { FileText, Plus, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
-import { AttachmentLink } from "@/components/student-detail"
+import { StudentAttachmentLink } from "@/components/file-viewer"
 import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
 import { Fab, ResponsiveSheet, ScreenHeader } from "@/components/mobile-ui"
 import { StatusBadge } from "@/components/status-badge"
@@ -13,8 +13,16 @@ import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
-import { fetchLeaveRequests, fetchStudentOverview } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
+import { fetchStudentOverview } from "@/lib/queries"
+import { api, listPaged } from "@/lib/api"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { uploadStudentFile } from "@/lib/storage"
 import {
   LEAVE_STATUS_CLASS,
@@ -41,18 +49,38 @@ export function SiswaLeavePage() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<Form>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(1)
 
   const data = useAsyncData(
     async () => {
-      if (!profile) return { requests: [] as LeaveRequest[], overview: null }
-      const [requests, overview] = await Promise.all([
-        fetchLeaveRequests({ studentId: profile.id }),
+      if (!profile)
+        return {
+          paged: {
+            rows: [] as LeaveRequest[],
+            total: 0,
+            page: 1,
+            pageSize: 10,
+            totalPages: 1,
+          },
+          overview: null,
+        }
+      const [paged, overview] = await Promise.all([
+        listPaged<LeaveRequest>("leave", { student_id: profile.id, page }, 10),
         fetchStudentOverview(profile.id),
       ])
-      return { requests, overview }
+      return { paged, overview }
     },
-    { requests: [] as LeaveRequest[], overview: null },
-    [profile?.id],
+    {
+      paged: {
+        rows: [] as LeaveRequest[],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        totalPages: 1,
+      },
+      overview: null,
+    },
+    [profile?.id, page],
   )
 
   const submit = async (event: React.FormEvent) => {
@@ -79,7 +107,7 @@ export function SiswaLeavePage() {
         attachmentName = uploaded.name
       }
 
-      const { error } = await supabase.from("leave_requests").insert({
+      await api.create("leave", {
         student_id: profile.id,
         type: form.type,
         start_date: form.start_date,
@@ -89,26 +117,23 @@ export function SiswaLeavePage() {
         attachment_name: attachmentName,
         status: "menunggu",
       })
-      if (error) throw new Error(error.message)
 
       toast.success("Pengajuan berhasil dikirim dan menunggu persetujuan pembimbing.")
       setOpen(false)
       setForm(EMPTY)
       data.reload()
-    } catch {
-      toast.error("Gagal mengirim pengajuan. Silakan coba lagi.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengirim pengajuan. Silakan coba lagi.")
     } finally {
       setSaving(false)
     }
   }
 
   const cancel = async (request: LeaveRequest) => {
-    const { error } = await supabase
-      .from("leave_requests")
-      .update({ status: "dibatalkan" })
-      .eq("id", request.id)
-    if (error) {
-      toast.error("Gagal membatalkan pengajuan.")
+    try {
+      await api.update("leave", request.id, { status: "dibatalkan" })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membatalkan pengajuan.")
       return
     }
     toast.success("Pengajuan dibatalkan.")
@@ -117,6 +142,9 @@ export function SiswaLeavePage() {
 
   const overview = data.data.overview
   const placementReady = overview?.placement?.status === "aktif"
+  const requests = data.data.paged.rows
+  const totalPages = data.data.paged.totalPages
+  const total = data.data.paged.total
 
   return (
     <div className="space-y-5">
@@ -132,7 +160,7 @@ export function SiswaLeavePage() {
         <LoadingState rows={3} />
       ) : data.error ? (
         <ErrorState message={data.error} onRetry={data.reload} />
-      ) : data.data.requests.length === 0 ? (
+      ) : requests.length === 0 ? (
         <EmptyState
           icon={FileText}
           title="Belum ada pengajuan"
@@ -140,7 +168,7 @@ export function SiswaLeavePage() {
         />
       ) : (
         <div className="space-y-3">
-          {data.data.requests.map((request) => (
+          {requests.map((request) => (
             <Card key={request.id} className="gap-0 py-0">
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -173,7 +201,7 @@ export function SiswaLeavePage() {
                 )}
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <AttachmentLink path={request.attachment_path} name={request.attachment_name} />
+                  <StudentAttachmentLink path={request.attachment_path} name={request.attachment_name} />
                   {request.status === "menunggu" ? (
                     <Button size="sm" variant="ghost" onClick={() => cancel(request)}>
                       <XCircle />
@@ -184,6 +212,55 @@ export function SiswaLeavePage() {
               </CardContent>
             </Card>
           ))}
+          {totalPages > 1 ? (
+            <div className="space-y-2 pt-1">
+              <p className="text-center text-xs text-muted-foreground">
+                Halaman {page} dari {totalPages} — {total} pengajuan
+              </p>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (page > 1) setPage(page - 1)
+                      }}
+                      aria-disabled={page <= 1}
+                      className={page <= 1 ? "pointer-events-none opacity-50" : undefined}
+                    />
+                  </PaginationItem>
+                  {pageNumbers(page, totalPages).map((p) => (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        href="#"
+                        isActive={p === page}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setPage(p)
+                        }}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (page < totalPages) setPage(page + 1)
+                      }}
+                      aria-disabled={page >= totalPages}
+                      className={
+                        page >= totalPages ? "pointer-events-none opacity-50" : undefined
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -268,4 +345,14 @@ export function SiswaLeavePage() {
       </ResponsiveSheet>
     </div>
   )
+}
+
+function pageNumbers(page: number, totalPages: number): number[] {
+  const total = Math.max(1, totalPages)
+  const current = Math.min(Math.max(1, page), total)
+  const start = Math.max(1, Math.min(current - 2, total - 4))
+  const end = Math.min(total, start + 4)
+  const pages: number[] = []
+  for (let p = Math.max(1, end - 4); p <= end; p++) pages.push(p)
+  return pages
 }

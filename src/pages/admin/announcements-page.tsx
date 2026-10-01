@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { formatDateTime } from "@/lib/format"
 import type { Announcement, AnnouncementAudience } from "@/lib/types"
 
@@ -44,12 +44,7 @@ interface Form {
 const EMPTY: Form = { title: "", body: "", audience: "semua" }
 
 async function fetchAnnouncements(): Promise<Announcement[]> {
-  const { data, error } = await supabase
-    .from("announcements")
-    .select("*")
-    .order("created_at", { ascending: false })
-  if (error) throw new Error(error.message)
-  return (data ?? []) as Announcement[]
+  return api.list<Announcement>("announcements")
 }
 
 export function AdminAnnouncementsPage() {
@@ -79,15 +74,15 @@ export function AdminAnnouncementsPage() {
       created_by: profile?.id ?? null,
       created_by_name: profile?.full_name ?? null,
     }
-    const { error } = editing
-      ? await supabase.from("announcements").update(payload).eq("id", editing.id)
-      : await supabase.from("announcements").insert(payload)
-    setSaving(false)
-
-    if (error) {
-      toast.error("Gagal menyimpan pengumuman.")
+    try {
+      if (editing) await api.update("announcements", editing.id, payload)
+      else await api.create("announcements", payload)
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan pengumuman.")
       return
     }
+    setSaving(false)
     toast.success("Pengumuman disimpan.")
     setOpen(false)
     setEditing(null)
@@ -95,9 +90,10 @@ export function AdminAnnouncementsPage() {
   }
 
   const remove = async (announcement: Announcement) => {
-    const { error } = await supabase.from("announcements").delete().eq("id", announcement.id)
-    if (error) {
-      toast.error("Gagal menghapus pengumuman.")
+    try {
+      await api.remove("announcements", announcement.id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus pengumuman.")
       return
     }
     toast.success("Pengumuman dihapus.")

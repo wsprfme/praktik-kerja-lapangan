@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { PwaInstallPopup } from "@/components/pwa"
 import { SchoolLogo } from "@/components/school-logo"
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -47,7 +48,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/siswa": "Beranda",
   "/siswa/presensi": "Presensi",
   "/siswa/jurnal": "Jurnal Harian",
-  "/siswa/pengajuan": "Pengajuan Izin",
+  "/siswa/pengajuan": "Izin & Sakit",
   "/siswa/nilai": "Nilai PKL",
   "/siswa/pengumuman": "Pengumuman",
   "/siswa/profil": "Profil",
@@ -98,8 +99,10 @@ export function SiswaShell() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto flex w-full max-w-2xl items-stretch">
+      {/* Navigasi bawah menempel tepi (bukan mengambang), sudut atas membulat +
+          bayangan ke atas. Tab aktif berbentuk pil; semua item memendek saat ditekan. */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(0,0,0,0.10)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-2xl items-stretch gap-1 px-3 pt-2 pb-2">
           {PRIMARY_TABS.map((tab) => (
             <NavLink
               key={tab.to}
@@ -107,51 +110,43 @@ export function SiswaShell() {
               end={tab.end}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground",
+                  "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium transition-all active:scale-95",
+                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground active:bg-accent",
                 )
               }
             >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className={cn(
-                      "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                      isActive && "bg-primary/10",
-                    )}
-                  >
-                    <tab.icon className="size-5" />
-                  </span>
-                  {tab.label}
-                </>
-              )}
+              <tab.icon className="size-5" />
+              {tab.label}
             </NavLink>
           ))}
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
             className={cn(
-              "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
-              secondaryActive ? "text-primary" : "text-muted-foreground",
+              "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium transition-all active:scale-95",
+              secondaryActive ? "bg-primary/10 text-primary" : "text-muted-foreground active:bg-accent",
             )}
           >
-            <span
-              className={cn(
-                "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                secondaryActive && "bg-primary/10",
-              )}
-            >
-              <MoreHorizontal className="size-5" />
-            </span>
+            <MoreHorizontal className="size-5" />
             Lainnya
           </button>
         </div>
       </nav>
 
+      <PwaInstallPopup />
+
       <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
         <DrawerContent className="pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
           <DrawerHeader className="text-left">
-            <DrawerTitle>Menu Lainnya</DrawerTitle>
+            <div className="flex items-center gap-3">
+              <Avatar className="size-11">
+                <AvatarFallback>{initials(displayName)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <DrawerTitle className="truncate">{displayName}</DrawerTitle>
+                <p className="truncate text-xs text-muted-foreground">Siswa PKL</p>
+              </div>
+            </div>
           </DrawerHeader>
           <div className="space-y-1 px-2 pb-2">
             {SECONDARY_LINKS.map((item) => (
@@ -161,8 +156,8 @@ export function SiswaShell() {
                 onClick={() => setMoreOpen(false)}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors",
-                    isActive ? "bg-primary/10 text-primary" : "hover:bg-accent",
+                    "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all active:scale-[0.99]",
+                    isActive ? "bg-primary/10 text-primary" : "active:bg-accent",
                   )
                 }
               >
@@ -173,7 +168,7 @@ export function SiswaShell() {
             <Separator className="my-2" />
             <Button
               variant="ghost"
-              className="h-auto w-full justify-start gap-3 px-3 py-3 text-sm font-medium text-destructive hover:text-destructive"
+              className="h-auto w-full justify-start gap-3 rounded-xl px-3 py-3 text-sm font-medium text-destructive hover:text-destructive"
               onClick={handleSignOut}
             >
               <LogOut className="size-5" />

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { BookOpen, MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
-import { AttachmentLink } from "@/components/student-detail"
+import { StudentAttachmentLink } from "@/components/file-viewer"
 import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
 import { Fab, ResponsiveSheet, ScreenHeader } from "@/components/mobile-ui"
 import { StatusBadge } from "@/components/status-badge"
@@ -18,15 +18,24 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
-import { fetchJournals } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
+import { api, ApiError, listPaged } from "@/lib/api"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { uploadStudentFile } from "@/lib/storage"
+import { fetchStudentOverview } from "@/lib/queries"
 import {
   REVIEW_CLASS,
   REVIEW_LABEL,
   formatDate,
   formatDuration,
   formatDateTime,
+  isSunday,
   monthLabel,
   todayISO,
 } from "@/lib/format"
@@ -46,15 +55,44 @@ export function SiswaJournalsPage() {
   const { profile } = useAuth()
   const [month, setMonth] = useState(todayISO().slice(0, 7))
   const [query, setQuery] = useState("")
+  const [page, setPage] = useState(1)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Journal | null>(null)
   const [form, setForm] = useState<Form>(EMPTY)
   const [saving, setSaving] = useState(false)
 
-  const data = useAsyncData(
-    () => (profile ? fetchJournals({ studentId: profile.id }) : Promise.resolve([] as Journal[])),
-    [] as Journal[],
+  // Gate penempatan — konsisten dengan halaman presensi.
+  const overview = useAsyncData(
+    () => (profile ? fetchStudentOverview(profile.id) : Promise.resolve(null)),
+    null,
     [profile?.id],
+  )
+  const placement = overview.data?.placement ?? null
+  const placementReady =
+    !!placement &&
+    !!overview.data?.company &&
+    !!overview.data?.supervisor &&
+    placement.status === "aktif"
+
+  const data = useAsyncData(
+    () =>
+      profile
+        ? listPaged<Journal>("journals", { student_id: profile.id, page }, 10)
+        : Promise.resolve({
+            rows: [] as Journal[],
+            total: 0,
+            page: 1,
+            pageSize: 10,
+            totalPages: 1,
+          }),
+    {
+      rows: [] as Journal[],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    },
+    [profile?.id, page],
   )
 
   useEffect(() => {
@@ -72,7 +110,7 @@ export function SiswaJournalsPage() {
     )
   }, [open, editing])
 
-  const filtered = data.data.filter((journal) => {
+  const filtered = data.data.rows.filter((journal) => {
     if (!journal.date.startsWith(month)) return false
     const term = query.trim().toLowerCase()
     if (!term) return true
@@ -91,6 +129,14 @@ export function SiswaJournalsPage() {
     }
     if (!form.date) {
       toast.error("Tanggal kegiatan wajib diisi.")
+      return
+    }
+    if (form.date > todayISO()) {
+      toast.error("Tanggal jurnal tidak boleh melebihi hari ini.")
+      return
+    }
+    if (!overview.loading && !placementReady) {
+      toast.error("Penempatan PKL Anda belum aktif. Hubungi Admin.")
       return
     }
 
@@ -121,10 +167,11 @@ export function SiswaJournalsPage() {
         attachment_name: attachmentName,
       }
 
-      const { error } = editing
-        ? await supabase.from("journals").update(payload).eq("id", editing.id)
-        : await supabase.from("journals").insert(payload)
-      if (error) throw new Error(error.message)
+      if (editing) {
+        await api.update("journals", editing.id, payload)
+      } else {
+        await api.create("journals", payload)
+      }
 
       toast.success(editing ? "Jurnal diperbarui." : "Jurnal berhasil disimpan.")
       setOpen(false)
@@ -132,9 +179,11 @@ export function SiswaJournalsPage() {
       data.reload()
     } catch (err) {
       toast.error(
-        err instanceof Error && err.message.includes("duplicate")
+        err instanceof ApiError && err.status === 409
           ? "Jurnal untuk tanggal tersebut sudah ada. Silakan ubah jurnal yang sudah dibuat."
-          : "Gagal menyimpan jurnal. Silakan coba lagi.",
+          : err instanceof Error
+            ? err.message
+            : "Gagal menyimpan jurnal. Silakan coba lagi.",
       )
     } finally {
       setSaving(false)
@@ -142,9 +191,10 @@ export function SiswaJournalsPage() {
   }
 
   const remove = async (journal: Journal) => {
-    const { error } = await supabase.from("journals").delete().eq("id", journal.id)
-    if (error) {
-      toast.error("Gagal menghapus jurnal.")
+    try {
+      await api.remove("journals", journal.id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus jurnal.")
       return
     }
     toast.success("Jurnal dihapus.")
@@ -155,18 +205,41 @@ export function SiswaJournalsPage() {
     <div className="space-y-5">
       <ScreenHeader title="Jurnal Harian" description="Catat kegiatan PKL Anda setiap hari." />
 
+      {isSunday(todayISO()) ? (
+        <Card className="gap-0 border-sky-500/30 bg-sky-500/5 py-0">
+          <CardContent className="p-4 text-sm">
+            Hari ini <strong>Minggu</strong> — jurnal tidak wajib. Lewati saja bila Anda libur.
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!overview.loading && !placementReady ? (
+        <Card className="gap-0 border-amber-500/30 bg-amber-500/5 py-0">
+          <CardContent className="p-4 text-sm">
+            <strong>Jurnal belum aktif.</strong> Penempatan PKL Anda belum berstatus aktif. Riwayat di
+            bawah tetap bisa dibaca — hubungi Admin untuk mengaktifkan.
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="flex gap-2">
         <Input
           type="month"
           value={month}
-          onChange={(e) => setMonth(e.target.value)}
+          onChange={(e) => {
+            setMonth(e.target.value)
+            setPage(1)
+          }}
           className="h-10 w-[9.5rem] shrink-0"
         />
         <div className="relative min-w-0 flex-1">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setPage(1)
+            }}
             placeholder="Cari kegiatan..."
             className="h-10 pl-9"
           />
@@ -243,7 +316,7 @@ export function SiswaJournalsPage() {
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <AttachmentLink path={journal.attachment_path} name={journal.attachment_name} />
+                  <StudentAttachmentLink path={journal.attachment_path} name={journal.attachment_name} />
                   {journal.review_status === "ditinjau" && journal.reviewed_at ? (
                     <span className="text-xs text-muted-foreground">
                       Ditinjau {formatDateTime(journal.reviewed_at)}
@@ -253,17 +326,68 @@ export function SiswaJournalsPage() {
               </CardContent>
             </Card>
           ))}
+          {data.data.totalPages > 1 ? (
+            <div className="space-y-2 pt-1">
+              <p className="text-center text-xs text-muted-foreground">
+                Halaman {page} dari {data.data.totalPages} — {data.data.total} jurnal
+              </p>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (page > 1) setPage(page - 1)
+                      }}
+                      aria-disabled={page <= 1}
+                      className={page <= 1 ? "pointer-events-none opacity-50" : undefined}
+                    />
+                  </PaginationItem>
+                  {pageNumbers(page, data.data.totalPages).map((p) => (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        href="#"
+                        isActive={p === page}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setPage(p)
+                        }}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (page < data.data.totalPages) setPage(page + 1)
+                      }}
+                      aria-disabled={page >= data.data.totalPages}
+                      className={
+                        page >= data.data.totalPages ? "pointer-events-none opacity-50" : undefined
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          ) : null}
         </div>
       )}
 
-      <Fab
-        label="Tulis Jurnal"
-        icon={Plus}
-        onClick={() => {
-          setEditing(null)
-          setOpen(true)
-        }}
-      />
+      {!overview.loading && !placementReady ? null : (
+        <Fab
+          label="Tulis Jurnal"
+          icon={Plus}
+          onClick={() => {
+            setEditing(null)
+            setOpen(true)
+          }}
+        />
+      )}
 
       <ResponsiveSheet
         open={open}
@@ -280,6 +404,7 @@ export function SiswaJournalsPage() {
             <Input
               id="tanggal-jurnal"
               type="date"
+              max={todayISO()}
               value={form.date}
               onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
             />
@@ -336,4 +461,14 @@ export function SiswaJournalsPage() {
       </ResponsiveSheet>
     </div>
   )
+}
+
+function pageNumbers(page: number, totalPages: number): number[] {
+  const total = Math.max(1, totalPages)
+  const current = Math.min(Math.max(1, page), total)
+  const start = Math.max(1, Math.min(current - 2, total - 4))
+  const end = Math.min(total, start + 4)
+  const pages: number[] = []
+  for (let p = Math.max(1, end - 4); p <= end; p++) pages.push(p)
+  return pages
 }

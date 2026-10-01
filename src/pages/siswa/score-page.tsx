@@ -24,6 +24,14 @@ interface ScoreRow {
   score_attitude: number | null
 }
 
+function safeScore(v: unknown): number | null {
+  if (v === null || v === undefined) return null
+  if (typeof v === "string" && v.trim() === "") return null
+  const n = typeof v === "number" ? v : Number(v)
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null
+  return n
+}
+
 export function SiswaScorePage() {
   const { profile } = useAuth()
 
@@ -59,6 +67,14 @@ export function SiswaScorePage() {
   }
 
   const { assessment, overview } = data.data
+  const finalScore = safeScore(assessment?.final_score)
+  const predicate =
+    assessment?.predicate === "A" ||
+    assessment?.predicate === "B" ||
+    assessment?.predicate === "C" ||
+    assessment?.predicate === "D"
+      ? assessment.predicate
+      : null
 
   return (
     <div className="space-y-5">
@@ -71,7 +87,7 @@ export function SiswaScorePage() {
         }
       />
 
-      {!assessment || assessment.final_score === null ? (
+      {!assessment || finalScore === null ? (
         <EmptyState
           icon={BarChart3}
           title="Nilai belum tersedia"
@@ -82,16 +98,14 @@ export function SiswaScorePage() {
           <Card className="gap-0 border-0 bg-primary py-0 text-primary-foreground shadow-lg shadow-primary/20">
             <CardContent className="flex items-center gap-5 p-5">
               <div className="flex size-20 shrink-0 flex-col items-center justify-center rounded-full bg-primary-foreground/15">
-                <span className="text-2xl font-semibold">{assessment.final_score}</span>
+                <span className="text-2xl font-semibold">{finalScore}</span>
                 <span className="text-[10px] opacity-80">dari 100</span>
               </div>
               <div className="min-w-0 space-y-1">
                 <p className="text-xs opacity-80">Nilai akhir PKL</p>
-                {assessment.predicate ? (
-                  <p className="text-lg font-semibold">{assessment.predicate}</p>
-                ) : null}
+                {predicate ? <p className="text-lg font-semibold">{predicate}</p> : null}
                 <p className="text-xs opacity-90">
-                  {assessment.predicate ? `${PREDICATE_LABEL[assessment.predicate]} - ` : ""}
+                  {predicate ? `${PREDICATE_LABEL[predicate]} - ` : ""}
                   {assessment.assessed_by_name
                     ? `oleh ${assessment.assessed_by_name}`
                     : "dinilai pembimbing"}
@@ -107,7 +121,7 @@ export function SiswaScorePage() {
                 <p className="text-sm font-semibold">Rincian komponen</p>
               </div>
               {COMPONENTS.map((component) => {
-                const value = assessment[component.key] as number | null
+                const value = safeScore(assessment[component.key])
                 return (
                   <div key={component.key} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">

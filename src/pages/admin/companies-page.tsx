@@ -23,8 +23,8 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
+import { api } from "@/lib/api"
 import { fetchCompanies } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
 import type { Company } from "@/lib/types"
 
 interface CompanyForm {
@@ -101,15 +101,16 @@ export function AdminCompaniesPage() {
       notes: form.notes.trim() || null,
     }
 
-    const { error } = editing
-      ? await supabase.from("companies").update(payload).eq("id", editing.id)
-      : await supabase.from("companies").insert(payload)
-    setSaving(false)
-
-    if (error) {
-      toast.error("Gagal menyimpan data perusahaan.")
+    try {
+      if (editing) await api.update("companies", editing.id, payload)
+      else await api.create("companies", payload)
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan data perusahaan.")
       return
     }
+    setSaving(false)
+
     toast.success(editing ? "Data perusahaan diperbarui." : "Perusahaan baru ditambahkan.")
     setOpen(false)
     setEditing(null)
@@ -117,12 +118,10 @@ export function AdminCompaniesPage() {
   }
 
   const toggleActive = async (company: Company) => {
-    const { error } = await supabase
-      .from("companies")
-      .update({ is_active: !company.is_active })
-      .eq("id", company.id)
-    if (error) {
-      toast.error("Gagal mengubah status perusahaan.")
+    try {
+      await api.update("companies", company.id, { is_active: !company.is_active })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah status perusahaan.")
       return
     }
     toast.success(company.is_active ? "Perusahaan dinonaktifkan." : "Perusahaan diaktifkan.")

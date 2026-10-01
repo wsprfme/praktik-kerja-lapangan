@@ -5,14 +5,12 @@ import {
   CalendarCheck,
   CalendarDays,
   ChevronRight,
-  Clock,
-  FileText,
-  GraduationCap,
+  LogOut,
   Megaphone,
   UserRound,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { EmptyState, ErrorState, LoadingState } from "@/components/page-states"
+import { ErrorState, LoadingState } from "@/components/page-states"
 import { ScreenHeader } from "@/components/mobile-ui"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
@@ -25,6 +23,7 @@ import {
   fetchAnnouncements,
   fetchAssessments,
   fetchAttendance,
+  fetchHolidays,
   fetchJournals,
   fetchLeaveRequests,
   fetchStudentOverview,
@@ -40,17 +39,13 @@ import {
   REVIEW_LABEL,
   daysBetween,
   formatDate,
+  formatDayName,
   formatDuration,
+  formatTime,
+  shiftISODate,
   todayISO,
 } from "@/lib/format"
 import type { AttendanceStatus, LeaveStatus, ReviewStatus } from "@/lib/types"
-
-const QUICK_ACTIONS = [
-  { label: "Presensi", to: "/siswa/presensi", icon: CalendarCheck },
-  { label: "Jurnal", to: "/siswa/jurnal", icon: BookOpen },
-  { label: "Izin", to: "/siswa/pengajuan", icon: FileText },
-  { label: "Nilai", to: "/siswa/nilai", icon: GraduationCap },
-]
 
 export function SiswaDashboard() {
   const { profile } = useAuth()
@@ -59,19 +54,20 @@ export function SiswaDashboard() {
   const data = useAsyncData(
     async () => {
       if (!profile) {
-        return { overview: null, attendance: [], journals: [], leave: [], assessment: null, announcements: [] }
+        return { overview: null, attendance: [], journals: [], leave: [], assessment: null, announcements: [], holidays: [] }
       }
-      const [overview, attendance, journals, leave, assessments, announcements] = await Promise.all([
+      const [overview, attendance, journals, leave, assessments, announcements, holidays] = await Promise.all([
         fetchStudentOverview(profile.id),
         fetchAttendance({ studentId: profile.id }),
         fetchJournals({ studentId: profile.id }),
         fetchLeaveRequests({ studentId: profile.id }),
         fetchAssessments([profile.id]),
         fetchAnnouncements(),
+        fetchHolidays(),
       ])
-      return { overview, attendance, journals, leave, assessment: assessments[0] ?? null, announcements }
+      return { overview, attendance, journals, leave, assessment: assessments[0] ?? null, announcements, holidays }
     },
-    { overview: null, attendance: [], journals: [], leave: [], assessment: null, announcements: [] },
+    { overview: null, attendance: [], journals: [], leave: [], assessment: null, announcements: [], holidays: [] },
     [profile?.id],
   )
 
@@ -93,18 +89,60 @@ export function SiswaDashboard() {
     )
   }
 
-  const { overview, attendance, journals, leave, assessment, announcements } = data.data
+  const { overview, attendance, journals, leave, assessment, announcements, holidays } = data.data
   const todayAttendance = attendance.find((a) => a.date === today) ?? null
+  const yesterday = shiftISODate(today, -1)
+  const yesterdayAttendance = attendance.find((a) => a.date === yesterday) ?? null
+  const hasTodayJournal = journals.some((j) => j.date === today)
+  const todayHoliday = holidays.find((h) => h.date === today) ?? null
   const counts = attendance.reduce<Record<string, number>>((acc, item) => {
     acc[item.status] = (acc[item.status] ?? 0) + 1
     return acc
   }, {})
   const recentJournals = journals.slice(0, 3)
-  const pendingLeave = leave.filter((l) => l.status === "menunggu").length
   const firstName = overview?.profile.full_name.split(" ")[0] ?? profile?.full_name.split(" ")[0] ?? "Siswa"
 
   const placement = overview?.placement ?? null
   const notPlaced = !placement || !overview?.company || !overview?.supervisor
+  const placementActive =
+    !!placement && !!overview?.company && !!overview?.supervisor && placement.status === "aktif"
+  // Minggu dihitung hari kerja opsional: ada yang libur, ada yang piket/shift.
+  const isWorkday = placementActive && !todayHoliday
+
+  // Tugas yang benar-benar bisa diklik — hanya ini yang berbentuk tombol.
+  const attention: { icon: typeof CalendarCheck; title: string; desc: string; to: string; primary: boolean }[] = []
+  if (placementActive && isWorkday && !todayAttendance) {
+    attention.push({
+      icon: CalendarCheck,
+      title: "Isi presensi hari ini",
+      desc: `${formatDayName(today)}, ${formatDate(today)} — foto + lokasi`,
+      to: "/siswa/presensi",
+      primary: true,
+    })
+  }
+  if (
+    placementActive &&
+    yesterdayAttendance &&
+    yesterdayAttendance.status === "hadir" &&
+    !yesterdayAttendance.check_out_time
+  ) {
+    attention.push({
+      icon: LogOut,
+      title: "Absen pulang kemarin",
+      desc: `${formatDate(yesterday)} — ketuk untuk mencatat jam pulang`,
+      to: "/siswa/presensi",
+      primary: attention.length === 0,
+    })
+  }
+  if (placementActive && isWorkday && !hasTodayJournal) {
+    attention.push({
+      icon: BookOpen,
+      title: "Tulis jurnal hari ini",
+      desc: "Catat kegiatan PKL Anda",
+      to: "/siswa/jurnal",
+      primary: attention.length === 0,
+    })
+  }
 
   let totalDays: number | null = null
   let remainingDays: number | null = null
@@ -123,33 +161,54 @@ export function SiswaDashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="space-y-1">
-        <p className="text-sm text-muted-foreground">Selamat datang kembali,</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{firstName}</h1>
-        <p className="text-xs text-muted-foreground">{formatDate(today)}</p>
-      </div>
-
+      {/* Kartu utama: sapaan + tempat PKL. Selalu paling atas. */}
       {notPlaced ? (
-        <EmptyState
-          icon={Building2}
-          title="Menunggu penempatan PKL"
-          description="Admin belum melengkapi data perusahaan, pembimbing, atau periode PKL Anda. Presensi dan jurnal akan aktif setelah penempatan ditetapkan."
-        />
+        <Card className="gap-0 overflow-hidden border-0 bg-primary py-0 text-primary-foreground shadow-lg shadow-primary/20">
+          <CardContent className="space-y-3 p-5">
+            <div className="space-y-0.5">
+              <p className="text-xs opacity-80">Selamat datang kembali,</p>
+              <h1 className="text-xl font-semibold tracking-tight">{firstName}</h1>
+              <p className="text-xs opacity-80">
+                {formatDayName(today)}, {formatDate(today)}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-primary-foreground/10 p-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15">
+                <Building2 className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Menunggu tempat PKL</p>
+                <p className="text-xs opacity-80">
+                  Admin belum mengatur tempat, pembimbing, atau periode Anda. Presensi dan jurnal
+                  aktif setelah semuanya lengkap.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <Card className="gap-0 overflow-hidden border-0 bg-primary py-0 text-primary-foreground shadow-lg shadow-primary/20">
           <CardContent className="space-y-4 p-5">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1">
-                <p className="text-xs/relaxed opacity-80">Penempatan PKL</p>
-                <p className="truncate text-lg font-semibold">{overview?.company?.name ?? "-"}</p>
-                <p className="flex items-center gap-1.5 text-xs opacity-90">
-                  <UserRound className="size-3.5 shrink-0" />
-                  <span className="truncate">Pembimbing {overview?.supervisor?.full_name ?? "-"}</span>
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-xs opacity-80">Selamat datang kembali,</p>
+                <h1 className="truncate text-xl font-semibold tracking-tight">{firstName}</h1>
+                <p className="text-xs opacity-80">
+                  {formatDayName(today)}, {formatDate(today)}
                 </p>
               </div>
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15">
                 <Building2 className="size-5" />
               </span>
+            </div>
+
+            <div className="space-y-1 rounded-xl bg-primary-foreground/10 p-3">
+              <p className="text-xs opacity-80">Tempat PKL</p>
+              <p className="truncate text-base font-semibold">{overview?.company?.name ?? "-"}</p>
+              <p className="flex items-center gap-1.5 text-xs opacity-90">
+                <UserRound className="size-3.5 shrink-0" />
+                <span className="truncate">Pembimbing {overview?.supervisor?.full_name ?? "-"}</span>
+              </p>
             </div>
 
             {totalDays ? (
@@ -173,86 +232,96 @@ export function SiswaDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="gap-0 border py-0">
-          <CardContent className="flex items-center gap-3 p-4">
-            <span
-              className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-xl",
-                todayAttendance?.status === "hadir"
-                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              <CalendarCheck className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Presensi hari ini</p>
-              <p className="truncate text-sm font-semibold">
-                {todayAttendance ? ATTENDANCE_LABEL[todayAttendance.status as AttendanceStatus] : "Belum diisi"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 border py-0">
-          <CardContent className="flex items-center gap-3 p-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-              <Clock className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Total hadir</p>
-              <p className="text-sm font-semibold">{counts.hadir ?? 0} hari</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 border py-0">
-          <CardContent className="flex items-center gap-3 p-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-700 dark:text-sky-400">
-              <BookOpen className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Jurnal terkumpul</p>
-              <p className="text-sm font-semibold">{journals.length} jurnal</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 border py-0">
-          <CardContent className="flex items-center gap-3 p-4">
-            <span
-              className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-xl",
-                pendingLeave > 0
-                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              <FileText className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Pengajuan</p>
-              <p className="text-sm font-semibold">{pendingLeave} menunggu</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-3">
-        <p className="text-sm font-semibold">Aksi cepat</p>
-        <div className="grid grid-cols-4 gap-3">
-          {QUICK_ACTIONS.map((action) => (
-            <Link
-              key={action.to}
-              to={action.to}
-              className="flex flex-col items-center gap-2 rounded-xl border bg-card py-3 transition-colors active:bg-accent"
-            >
-              <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <action.icon className="size-5" />
-              </span>
-              <span className="text-xs font-medium">{action.label}</span>
-            </Link>
-          ))}
+      {/* Tugas yang bisa diklik — SELALU berbentuk tombol (chevron kanan).
+          Kartu info di bawahnya TIDAK PERNAH bisa diklik: tanpa chevron,
+          tanpa efek tekan. */}
+      {attention.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">Yang harus dilakukan</p>
+          <div className="space-y-2">
+            {attention.map((item) => (
+              <Link
+                key={item.title}
+                to={item.to}
+                className={
+                  item.primary
+                    ? "flex items-center gap-3 rounded-xl bg-primary px-4 py-3.5 text-primary-foreground shadow-lg shadow-primary/20 transition-transform active:scale-[0.99]"
+                    : "flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition-colors active:bg-accent"
+                }
+              >
+                <span
+                  className={
+                    item.primary
+                      ? "flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15"
+                      : "flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                  }
+                >
+                  <item.icon className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{item.title}</span>
+                  <span
+                    className={
+                      item.primary
+                        ? "block truncate text-xs opacity-80"
+                        : "block truncate text-xs text-muted-foreground"
+                    }
+                  >
+                    {item.desc}
+                  </span>
+                </span>
+                <ChevronRight className="size-5 shrink-0 opacity-70" />
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      {placementActive && !isWorkday ? (
+        <div className="flex items-center gap-3 rounded-xl bg-muted/60 px-4 py-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
+            <CalendarDays className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Hari libur</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {todayHoliday?.name ?? "Libur"} — tidak ada tugas presensi dan jurnal.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Kartu info: sengaja TIDAK bisa diklik (tanpa chevron & efek tekan)
+          agar tidak dikira tombol seperti dulu. */}
+      {!notPlaced ? (
+        <Card className="gap-0 border py-0">
+          <CardContent className="space-y-2.5 p-4">
+            <p className="text-sm font-semibold">Status hari ini</p>
+            <dl className="space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <dt className="text-muted-foreground">Presensi masuk</dt>
+                <dd className="font-semibold">
+                  {todayAttendance ? ATTENDANCE_LABEL[todayAttendance.status as AttendanceStatus] : "Belum diisi"}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <dt className="text-muted-foreground">Presensi keluar</dt>
+                <dd className="font-semibold">
+                  {todayAttendance?.check_out_time
+                    ? formatTime(todayAttendance.check_out_time)
+                    : todayAttendance
+                      ? "Belum"
+                      : "—"}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <dt className="text-muted-foreground">Jurnal</dt>
+                <dd className="font-semibold">{hasTodayJournal ? "Sudah diisi" : "Belum diisi"}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <SectionCard
         title="Jurnal terbaru"

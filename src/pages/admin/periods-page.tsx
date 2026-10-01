@@ -23,8 +23,8 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useAsyncData } from "@/hooks/use-async-data"
+import { api } from "@/lib/api"
 import { fetchPeriods } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
 import { formatDate, todayISO } from "@/lib/format"
 import type { PklPeriod } from "@/lib/types"
 
@@ -83,11 +83,12 @@ export function AdminPeriodsPage() {
     setSaving(true)
     try {
       if (form.is_active) {
-        const { error: resetError } = await supabase
-          .from("pkl_periods")
-          .update({ is_active: false })
-          .neq("id", editing?.id ?? "00000000-0000-0000-0000-000000000000")
-        if (resetError) throw new Error(resetError.message)
+        const existing = await fetchPeriods()
+        await Promise.all(
+          existing
+            .filter((p) => p.is_active && p.id !== editing?.id)
+            .map((p) => api.update("periods", p.id, { is_active: false })),
+        )
       }
 
       const payload = {
@@ -98,10 +99,8 @@ export function AdminPeriodsPage() {
         is_active: form.is_active,
       }
 
-      const { error } = editing
-        ? await supabase.from("pkl_periods").update(payload).eq("id", editing.id)
-        : await supabase.from("pkl_periods").insert(payload)
-      if (error) throw new Error(error.message)
+      if (editing) await api.update("periods", editing.id, payload)
+      else await api.create("periods", payload)
 
       toast.success(editing ? "Periode diperbarui." : "Periode baru ditambahkan.")
       setOpen(false)
@@ -115,14 +114,16 @@ export function AdminPeriodsPage() {
   }
 
   const setActive = async (period: PklPeriod) => {
-    const { error: resetError } = await supabase.from("pkl_periods").update({ is_active: false }).neq("id", period.id)
-    if (resetError) {
-      toast.error("Gagal mengubah periode aktif.")
-      return
-    }
-    const { error } = await supabase.from("pkl_periods").update({ is_active: true }).eq("id", period.id)
-    if (error) {
-      toast.error("Gagal mengubah periode aktif.")
+    try {
+      const existing = await fetchPeriods()
+      await Promise.all(
+        existing
+          .filter((p) => p.is_active && p.id !== period.id)
+          .map((p) => api.update("periods", p.id, { is_active: false })),
+      )
+      await api.update("periods", period.id, { is_active: true })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah periode aktif.")
       return
     }
     toast.success(`${period.name} ditetapkan sebagai periode aktif.`)

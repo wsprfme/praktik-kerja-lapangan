@@ -1,7 +1,6 @@
-import { useNavigate } from "react-router-dom"
+import { Navigate, useNavigate } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { ModeToggle } from "@/components/mode-toggle"
 import { ErrorState } from "@/components/page-states"
 import { ROLE_HOME } from "@/lib/format"
 import type { Role } from "@/lib/types"
@@ -57,17 +56,7 @@ export function RoleGate({ role, children }: { role: Role; children: React.React
   }
 
   if (profile.role !== role) {
-    return (
-      <div className="relative flex min-h-svh flex-col items-center justify-center gap-4 p-6">
-        <div className="absolute top-4 right-4">
-          <ModeToggle />
-        </div>
-        <ErrorState
-          message="Halaman ini tidak tersedia untuk peran akun Anda."
-          onRetry={() => navigate(ROLE_HOME[profile.role], { replace: true })}
-        />
-      </div>
-    )
+    return <Navigate to={ROLE_HOME[profile.role]} replace />
   }
 
   return <>{children}</>

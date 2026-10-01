@@ -1,8 +1,8 @@
-import { useState } from "react"
-import { BookOpen, CalendarCheck, FileText, GraduationCap, Link2, Loader2 } from "lucide-react"
+import { BookOpen, CalendarCheck, FileText, GraduationCap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AttachmentLink } from "@/components/file-viewer"
+export { AttachmentLink }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState, ErrorState, InlineLoading } from "@/components/page-states"
 import { StatusBadge } from "@/components/status-badge"
@@ -14,7 +14,6 @@ import {
   fetchLeaveRequests,
   fetchStudentOverview,
 } from "@/lib/queries"
-import { getSignedUrl } from "@/lib/storage"
 import {
   ATTENDANCE_CLASS,
   ATTENDANCE_LABEL,
@@ -31,32 +30,6 @@ import {
   formatTime,
 } from "@/lib/format"
 import type { AttendanceStatus, LeaveStatus, ReviewStatus } from "@/lib/types"
-
-export function AttachmentLink({ path, name, label }: { path: string | null; name: string | null; label?: string }) {
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
-
-  if (!path) return null
-
-  const open = async () => {
-    setLoading(true)
-    setFailed(false)
-    const url = await getSignedUrl(path)
-    setLoading(false)
-    if (!url) {
-      setFailed(true)
-      return
-    }
-    window.open(url, "_blank", "noopener,noreferrer")
-  }
-
-  return (
-    <Button variant="outline" size="sm" onClick={open} disabled={loading}>
-      {loading ? <Loader2 className="animate-spin" /> : <Link2 />}
-      {failed ? "Berkas tidak tersedia" : (label ?? name ?? "Lihat lampiran")}
-    </Button>
-  )
-}
 
 export function StudentDetail({ studentId }: { studentId: string }) {
   const overview = useAsyncData(() => fetchStudentOverview(studentId), null, [studentId])
@@ -120,7 +93,7 @@ export function StudentDetail({ studentId }: { studentId: string }) {
                     </p>
                     {row.note ? <p className="text-xs text-muted-foreground">Catatan: {row.note}</p> : null}
                     {row.latitude !== null ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground break-words">
                         {row.address ?? "Alamat tidak tersedia"} ({formatCoordinate(row.latitude, row.longitude)})
                       </p>
                     ) : null}

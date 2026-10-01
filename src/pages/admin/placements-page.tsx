@@ -20,7 +20,7 @@ import { NativeSelect } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
 import { fetchCompanies, fetchPeriods, fetchProfilesByRole, fetchStudentOverviews, logActivity } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { PLACEMENT_STATUS_CLASS, PLACEMENT_STATUS_LABEL, formatDate } from "@/lib/format"
 import type { Company, PklPeriod, PlacementStatus, Profile, StudentOverview } from "@/lib/types"
 
@@ -122,19 +122,15 @@ export function AdminPlacementsPage() {
       notes: form.notes.trim() || null,
     }
 
-    const { error } = target.placement
-      ? await supabase.from("placements").update(payload).eq("id", target.placement.id)
-      : await supabase.from("placements").insert(payload)
-    setSaving(false)
-
-    if (error) {
-      toast.error(
-        error.message.includes("uq_placements_active_student_period")
-          ? "Siswa ini sudah memiliki penempatan aktif pada periode tersebut."
-          : "Gagal menyimpan penempatan.",
-      )
+    try {
+      if (target.placement) await api.update("placements", target.placement.id, payload)
+      else await api.create("placements", payload)
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan penempatan.")
       return
     }
+    setSaving(false)
 
     if (admin) {
       await logActivity({

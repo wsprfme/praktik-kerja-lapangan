@@ -70,6 +70,7 @@ export const NAV_BY_ROLE: Record<Role, NavSection[]> = {
         { label: "Tinjauan Jurnal", to: "/pembimbing/jurnal", icon: BookOpen },
         { label: "Pengajuan Izin", to: "/pembimbing/pengajuan", icon: FileText },
         { label: "Penilaian", to: "/pembimbing/penilaian", icon: BarChart3 },
+        { label: "Rekap & Ekspor", to: "/pembimbing/rekap", icon: BarChart3 },
         { label: "Pengumuman", to: "/pembimbing/pengumuman", icon: Megaphone },
       ],
     },

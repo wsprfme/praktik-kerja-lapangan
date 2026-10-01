@@ -17,9 +17,10 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { useAsyncData } from "@/hooks/use-async-data"
-import { fetchStudentOverviews } from "@/lib/queries"
+import { callAdminUsers } from "@/lib/api"
+import { fetchCompanies, fetchPeriods, fetchStudentOverviews } from "@/lib/queries"
+import { CLASS_OPTIONS, MAJORS } from "@/lib/school"
 import { formatDate } from "@/lib/format"
-import { supabase } from "@/lib/supabase"
 
 interface CreateForm {
   full_name: string
@@ -47,26 +48,8 @@ const EMPTY_FORM: CreateForm = {
   end_date: "",
 }
 
-async function callAdminUsers(payload: Record<string, unknown>, token: string) {
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(payload),
-  })
-  const body = await response.json()
-  if (!response.ok || body.error) {
-    throw new Error(body.error ?? `Gagal (${response.status})`)
-  }
-  return body as { user_id: string; warning?: string }
-}
-
 export function PembimbingStudentsPage() {
-  const { profile, session } = useAuth()
+  const { profile } = useAuth()
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -76,21 +59,13 @@ export function PembimbingStudentsPage() {
   const data = useAsyncData(() => fetchStudentOverviews(), [], [profile?.id])
 
   const companies = useAsyncData(async () => {
-    const { data: rows } = await supabase
-      .from("companies")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("name")
-    return rows ?? []
+    const rows = await fetchCompanies()
+    return rows.filter((c) => c.is_active)
   }, [])
 
   const periods = useAsyncData(async () => {
-    const { data: rows } = await supabase
-      .from("pkl_periods")
-      .select("id, name, start_date, end_date")
-      .eq("is_active", true)
-      .order("start_date", { ascending: false })
-    return rows ?? []
+    const rows = await fetchPeriods()
+    return rows.filter((p) => p.is_active)
   }, [])
 
   const filtered = data.data.filter((row) => {
@@ -106,7 +81,6 @@ export function PembimbingStudentsPage() {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!session?.access_token) return
 
     if (!form.full_name.trim()) {
       toast.error("Nama lengkap siswa wajib diisi.")
@@ -122,7 +96,7 @@ export function PembimbingStudentsPage() {
 
     setSaving(true)
     try {
-      const result = await callAdminUsers(
+      const result = await callAdminUsers<{ user_id: string; warning?: string }>(
         {
           action: "create_with_placement",
           role: "siswa",
@@ -138,7 +112,6 @@ export function PembimbingStudentsPage() {
           start_date: form.start_date || null,
           end_date: form.end_date || null,
         },
-        session.access_token,
       )
 
       let message = `Akun siswa ${form.full_name.trim()} berhasil dibuat.`
@@ -299,21 +272,29 @@ export function PembimbingStudentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel htmlFor="cs-class">Kelas</FieldLabel>
-                <Input
+                <NativeSelect
                   id="cs-class"
                   value={form.class_name}
                   onChange={(e) => setForm((prev) => ({ ...prev, class_name: e.target.value }))}
-                  placeholder="Contoh: XII RPL 1"
-                />
+                >
+                  <option value="">— Pilih kelas —</option>
+                  {CLASS_OPTIONS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </NativeSelect>
               </Field>
               <Field>
                 <FieldLabel htmlFor="cs-major">Jurusan</FieldLabel>
-                <Input
+                <NativeSelect
                   id="cs-major"
                   value={form.major}
                   onChange={(e) => setForm((prev) => ({ ...prev, major: e.target.value }))}
-                  placeholder="Contoh: RPL"
-                />
+                >
+                  <option value="">— Pilih jurusan —</option>
+                  {MAJORS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </NativeSelect>
               </Field>
             </div>
 

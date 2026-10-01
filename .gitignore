@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# SQLite + uploads lokal (file gambar HANYA di disk, DB hanya path)
+server/db.sqlite*
+server/uploads/
+server/.env
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

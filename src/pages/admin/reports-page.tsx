@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts"
-import { Download, Printer } from "lucide-react"
+import { Download, FileSpreadsheet, Loader2, Printer } from "lucide-react"
+import { toast } from "sonner"
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/page-states"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,6 +32,8 @@ import {
   fetchProfilesByRole,
   fetchStudentOverviews,
 } from "@/lib/queries"
+import { buildDateRange, downloadWorkbook, exportAdminFullReport } from "@/lib/export-excel"
+import { NativeSelect } from "@/components/ui/native-select"
 import { ATTENDANCE_LABEL, PREDICATE_LABEL, formatDate, monthLabel, todayISO } from "@/lib/format"
 import type { Journal, StudentOverview } from "@/lib/types"
 
@@ -49,6 +52,8 @@ const leaveConfig = {
 
 export function AdminReportsPage() {
   const [month, setMonth] = useState(todayISO().slice(0, 7))
+  const [mode, setMode] = useState<"harian" | "mingguan" | "bulanan" | "seluruh">("bulanan")
+  const [exporting, setExporting] = useState(false)
 
   const data = useAsyncData(
     async () => {
@@ -127,6 +132,41 @@ export function AdminReportsPage() {
     { key: "ditolak", value: rows.reduce((s, r) => s + r.leaveRejected, 0) },
   ].filter((item) => item.value > 0)
 
+  const exportExcel = async () => {
+    if (rows.length === 0) {
+      toast.error("Tidak ada data untuk diekspor.")
+      return
+    }
+    setExporting(true)
+    try {
+      const range = buildDateRange(mode)
+      const [attendance, journals, leave, assessments] = await Promise.all([
+        fetchAttendance({ from: range.from, to: range.to }),
+        fetchJournals({ from: range.from, to: range.to }),
+        fetchLeaveRequests(),
+        fetchAssessments(),
+      ])
+      const filteredLeave = leave.filter(
+        (l) => l.start_date.slice(0, 10) <= range.to && l.end_date.slice(0, 10) >= range.from,
+      )
+      const workbook = await exportAdminFullReport({
+        students: data.data.overviews,
+        attendance,
+        journals,
+        leaveRequests: filteredLeave,
+        assessments,
+        period: data.data.periodName,
+        dateRange: range,
+      })
+      await downloadWorkbook(workbook, `Laporan_PKL_${mode}_${range.from}_${range.to}.xlsx`)
+      toast.success("File Excel berhasil diunduh.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengekspor data.")
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const exportCsv = () => {
     const header = [
       "Nama",
@@ -180,13 +220,23 @@ export function AdminReportsPage() {
           onChange={(e) => setMonth(e.target.value)}
           className="w-40"
         />
+        <NativeSelect value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="w-40">
+          <option value="harian">Harian</option>
+          <option value="mingguan">Mingguan</option>
+          <option value="bulanan">Bulanan</option>
+          <option value="seluruh">Seluruh</option>
+        </NativeSelect>
         <Button variant="outline" onClick={() => window.print()}>
           <Printer />
           Cetak
         </Button>
-        <Button onClick={exportCsv} disabled={rows.length === 0}>
+        <Button onClick={exportExcel} disabled={rows.length === 0 || exporting}>
+          {exporting ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+          {exporting ? "Mengekspor..." : "Ekspor Excel"}
+        </Button>
+        <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
           <Download />
-          Ekspor CSV
+          CSV
         </Button>
       </PageHeader>
 

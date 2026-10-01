@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { KeyRound, Save, UserRound } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { Eye, EyeOff, KeyRound, Save, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
 import { ScreenHeader } from "@/components/mobile-ui"
@@ -9,9 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { ROLE_LABEL, formatDateTime, initials } from "@/lib/format"
-import { PASSWORD_HINT, translateAuthError, validatePassword } from "@/lib/password"
+import { PASSWORD_HINT, validatePassword } from "@/lib/password"
 import type { StudentOverview } from "@/lib/types"
 
 interface ProfilePageProps {
@@ -20,6 +21,7 @@ interface ProfilePageProps {
 
 export function ProfilePage({ overview }: ProfilePageProps) {
   const { profile, refresh } = useAuth()
+  const navigate = useNavigate()
   const [fullName, setFullName] = useState(profile?.full_name ?? "")
   const [phone, setPhone] = useState(profile?.phone ?? "")
   const [address, setAddress] = useState(profile?.address ?? "")
@@ -27,6 +29,8 @@ export function ProfilePage({ overview }: ProfilePageProps) {
 
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
 
   if (!profile) return null
@@ -38,20 +42,18 @@ export function ProfilePage({ overview }: ProfilePageProps) {
       return
     }
     setSavingProfile(true)
-    const { error } = await supabase
-      .from("profiles")
-      .update({
+    try {
+      await api.updateMe({
         full_name: fullName.trim(),
         phone: phone.trim() || null,
         address: address.trim() || null,
       })
-      .eq("id", profile.id)
-    setSavingProfile(false)
-
-    if (error) {
-      toast.error("Gagal menyimpan perubahan. Silakan coba lagi.")
+    } catch (err) {
+      setSavingProfile(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan perubahan.")
       return
     }
+    setSavingProfile(false)
     toast.success("Profil berhasil diperbarui.")
     await refresh()
   }
@@ -68,16 +70,19 @@ export function ProfilePage({ overview }: ProfilePageProps) {
       return
     }
     setSavingPassword(true)
-    const { error } = await supabase.auth.updateUser({ password })
-    setSavingPassword(false)
-
-    if (error) {
-      toast.error(translateAuthError(error.message))
+    try {
+      await api.changePassword(password)
+    } catch (err) {
+      setSavingPassword(false)
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah kata sandi.")
       return
     }
+    setSavingPassword(false)
     setPassword("")
     setConfirmPassword("")
-    toast.success("Kata sandi berhasil diubah.")
+    toast.success("Kata sandi berhasil diubah. Silakan masuk kembali dengan kata sandi baru.")
+    await refresh()
+    navigate("/masuk", { replace: true })
   }
 
   return (
@@ -164,25 +169,47 @@ export function ProfilePage({ overview }: ProfilePageProps) {
             <form className="space-y-4" onSubmit={savePassword}>
               <Field>
                 <FieldLabel htmlFor="sandi-baru">Kata Sandi Baru</FieldLabel>
-                <Input
-                  id="sandi-baru"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="sandi-baru"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
                 <FieldDescription>{PASSWORD_HINT}</FieldDescription>
               </Field>
               <Separator />
               <Field>
                 <FieldLabel htmlFor="sandi-ulang">Konfirmasi Kata Sandi</FieldLabel>
-                <Input
-                  id="sandi-ulang"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="sandi-ulang"
+                    type={showConfirm ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showConfirm ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                  >
+                    {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
               </Field>
               <Button type="submit" variant="secondary" disabled={savingPassword}>
                 {savingPassword ? "Menyimpan..." : "Ubah Kata Sandi"}

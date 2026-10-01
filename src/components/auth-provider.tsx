@@ -1,10 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import type { Session } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase"
+import { api, ApiError, getToken, setToken } from "@/lib/api"
 import type { Profile } from "@/lib/types"
 
 interface AuthState {
-  session: Session | null
+  session: { access_token: string } | null
   profile: Profile | null
   loading: boolean
   error: string | null
@@ -15,83 +14,64 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<{ access_token: string } | null>(() => {
+    const t = getToken()
+    return t ? { access_token: t } : null
+  })
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadProfile = useCallback(async (activeSession: Session | null) => {
-    if (!activeSession?.user) {
+  const loadProfile = useCallback(async () => {
+    const token = getToken()
+    if (!token) {
       setProfile(null)
+      setSession(null)
       setError(null)
       setLoading(false)
       return
     }
-
-    const { data, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", activeSession.user.id)
-      .maybeSingle()
-
-    if (profileError) {
+    try {
+      const { user } = await api.me()
+      if (!user.is_active) {
+        setProfile(null)
+        setSession(null)
+        setToken(null)
+        setError("Akun Anda sedang dinonaktifkan. Hubungi Admin.")
+        setLoading(false)
+        return
+      }
+      setProfile(user)
+      setSession({ access_token: token })
+      setError(null)
+    } catch (err) {
+      // 401 = sesi tidak valid (logout di tempat lain / ganti password) → bersihkan token.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) setToken(null)
       setProfile(null)
-      setError("Gagal memuat data akun. Silakan coba lagi.")
+      setSession(null)
+      setError(null)
+    } finally {
       setLoading(false)
-      return
     }
-
-    if (!data) {
-      setProfile(null)
-      setError("Data akun tidak ditemukan. Hubungi Admin.")
-      setLoading(false)
-      return
-    }
-
-    if (!data.is_active) {
-      setProfile(null)
-      setError("Akun Anda sedang dinonaktifkan. Hubungi Admin.")
-      await supabase.auth.signOut()
-      setLoading(false)
-      return
-    }
-
-    setProfile(data as Profile)
-    setError(null)
-    setLoading(false)
   }, [])
 
   useEffect(() => {
-    let mounted = true
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return
-      setSession(data.session)
-      void loadProfile(data.session)
-    })
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      void (async () => {
-        if (!mounted) return
-        setSession(nextSession)
-        await loadProfile(nextSession)
-      })()
-    })
-
-    return () => {
-      mounted = false
-      subscription.subscription.unsubscribe()
-    }
+    void loadProfile()
   }, [loadProfile])
 
   const refresh = useCallback(async () => {
-    const { data } = await supabase.auth.getSession()
-    setSession(data.session)
-    await loadProfile(data.session)
+    setLoading(true)
+    await loadProfile()
   }, [loadProfile])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    // Panggil server dulu supaya token dicabut (M6), lalu bersihkan state lokal.
+    try {
+      await api.logout()
+    } catch {
+      /* abaikan: token lokal tetap dihapus */
+    }
+    setToken(null)
     setProfile(null)
     setSession(null)
   }, [])

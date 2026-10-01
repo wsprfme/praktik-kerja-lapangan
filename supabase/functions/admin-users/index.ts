@@ -40,7 +40,10 @@ interface Payload {
 const PASSWORD_HINT =
   "Minimal 8 karakter, serta memuat huruf besar, huruf kecil, angka, dan simbol.";
 
-function passwordProblem(password: string): string | null {
+function passwordProblem(password: string, opts?: { allowNisn?: boolean }): string | null {
+  // Siswa login awal memakai NISN (10 digit angka) sebagai password.
+  // Izinkan pola itu khusus pembuatan akun siswa agar flow NISN+NISN jalan.
+  if (opts?.allowNisn && /^\d{10}$/.test(password)) return null;
   if (password.length < 8) return "Kata sandi minimal 8 karakter.";
   if (!/[a-z]/.test(password)) return "Kata sandi harus memuat minimal satu huruf kecil.";
   if (!/[A-Z]/.test(password)) return "Kata sandi harus memuat minimal satu huruf besar.";
@@ -144,7 +147,7 @@ Deno.serve(async (req: Request) => {
       if (!email || !password || !fullName) {
         return json({ error: "Nama, email, dan kata sandi wajib diisi." }, 400);
       }
-      const createPasswordIssue = passwordProblem(password);
+      const createPasswordIssue = passwordProblem(password, { allowNisn: role === "siswa" });
       if (createPasswordIssue) {
         return json({ error: createPasswordIssue }, 400);
       }

@@ -19,8 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { callAdminUsers } from "@/lib/supabase"
+import { callAdminUsers } from "@/lib/api"
 import { PASSWORD_HINT, validatePassword } from "@/lib/password"
+import { CLASS_OPTIONS, MAJORS } from "@/lib/school"
 import type { PembimbingProfile, Profile, SiswaProfile } from "@/lib/types"
 
 interface AccountFormDialogProps {
@@ -222,11 +223,29 @@ export function AccountFormDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="kelas">Kelas</FieldLabel>
-                <Input id="kelas" value={form.class_name} onChange={(e) => update("class_name", e.target.value)} />
+                <Select value={form.class_name || undefined} onValueChange={(value) => update("class_name", value)}>
+                  <SelectTrigger id="kelas" className="w-full">
+                    <SelectValue placeholder="Pilih kelas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CLASS_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field className="sm:col-span-2">
                 <FieldLabel htmlFor="jurusan">Jurusan</FieldLabel>
-                <Input id="jurusan" value={form.major} onChange={(e) => update("major", e.target.value)} />
+                <Select value={form.major || undefined} onValueChange={(value) => update("major", value)}>
+                  <SelectTrigger id="jurusan" className="w-full">
+                    <SelectValue placeholder="Pilih jurusan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAJORS.map((m) => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
             </div>
           ) : (

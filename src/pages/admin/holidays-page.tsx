@@ -23,8 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useAsyncData } from "@/hooks/use-async-data"
+import { api } from "@/lib/api"
 import { fetchHolidays } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
 import { formatDate, formatDayName, todayISO } from "@/lib/format"
 import type { Holiday } from "@/lib/types"
 
@@ -42,15 +42,16 @@ export function AdminHolidaysPage() {
       return
     }
     setSaving(true)
-    const { error } = await supabase
-      .from("holidays")
-      .upsert({ date, name: name.trim() }, { onConflict: "date" })
-    setSaving(false)
-
-    if (error) {
-      toast.error("Gagal menyimpan hari libur.")
+    try {
+      const existing = data.data.find((h) => h.date === date)
+      if (existing) await api.update("holidays", existing.id, { date, name: name.trim() })
+      else await api.create("holidays", { date, name: name.trim() })
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan hari libur.")
       return
     }
+    setSaving(false)
     toast.success("Hari libur disimpan.")
     setOpen(false)
     setName("")
@@ -58,9 +59,10 @@ export function AdminHolidaysPage() {
   }
 
   const remove = async (holiday: Holiday) => {
-    const { error } = await supabase.from("holidays").delete().eq("id", holiday.id)
-    if (error) {
-      toast.error("Gagal menghapus hari libur.")
+    try {
+      await api.remove("holidays", holiday.id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus hari libur.")
       return
     }
     toast.success("Hari libur dihapus.")
@@ -69,7 +71,7 @@ export function AdminHolidaysPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Kalender Hari Libur" description="Hari libur tidak dihitung sebagai hari wajib presensi.">
+      <PageHeader title="Kalender Hari Libur" description="Hari libur tidak dihitung sebagai hari wajib presensi. Setiap hari Minggu otomatis libur mingguan.">
         <Button onClick={() => setOpen(true)}>
           <Plus />
           Tambah Hari Libur

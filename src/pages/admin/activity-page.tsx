@@ -3,18 +3,12 @@ import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/p
 import { StatusBadge } from "@/components/status-badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAsyncData } from "@/hooks/use-async-data"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
 import { ROLE_LABEL, formatDateTime } from "@/lib/format"
 import type { ActivityLog, Role } from "@/lib/types"
 
 async function fetchLogs(): Promise<ActivityLog[]> {
-  const { data, error } = await supabase
-    .from("activity_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(200)
-  if (error) throw new Error(error.message)
-  return (data ?? []) as ActivityLog[]
+  return api.list<ActivityLog>("activity-logs")
 }
 
 export function AdminActivityPage() {

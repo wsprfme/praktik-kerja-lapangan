@@ -18,8 +18,8 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAsyncData } from "@/hooks/use-async-data"
+import { api } from "@/lib/api"
 import { fetchAssessments, fetchStudentOverviews } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
 import { PREDICATE_LABEL, predicateFor } from "@/lib/format"
 import type { Assessment } from "@/lib/types"
 
@@ -131,16 +131,19 @@ export function PembimbingScoresPage() {
       assessed_by_name: profile.full_name,
       assessed_at: new Date().toISOString(),
     }
-
-    const { error } = targetAssessment
-      ? await supabase.from("assessments").update(payload).eq("id", targetAssessment.id)
-      : await supabase.from("assessments").insert(payload)
-    setSaving(false)
-
-    if (error) {
-      toast.error("Gagal menyimpan penilaian.")
+    try {
+      if (targetAssessment) {
+        await api.update("assessments", targetAssessment.id, payload)
+      } else {
+        await api.create("assessments", payload)
+      }
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan penilaian.")
       return
     }
+    setSaving(false)
+
     toast.success("Penilaian berhasil disimpan.")
     setTarget(null)
     data.reload()

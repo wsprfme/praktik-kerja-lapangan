@@ -1,0 +1,5 @@
+# Konteks unggah khusus service backend (`railway up server`).
+node_modules
+uploads
+db.sqlite*
+.env

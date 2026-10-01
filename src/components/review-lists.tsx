@@ -24,7 +24,8 @@ import {
   formatDateTime,
   formatDuration,
 } from "@/lib/format"
-import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api"
+import { fetchAttendance, fetchHolidays } from "@/lib/queries"
 import type { LeaveRequest, LeaveStatus, Profile } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -62,22 +63,20 @@ export function JournalReviewList({ journals, names, loading, error, onReload }:
     event.preventDefault()
     if (!target || !profile) return
     setSaving(true)
-    const { error: updateError } = await supabase
-      .from("journals")
-      .update({
+    try {
+      await api.update("journals", target.id, {
         supervisor_feedback: feedback.trim() || null,
         review_status: "ditinjau",
         reviewed_by: profile.id,
         reviewed_by_name: profile.full_name,
         reviewed_at: new Date().toISOString(),
       })
-      .eq("id", target.id)
-    setSaving(false)
-
-    if (updateError) {
-      toast.error("Gagal menyimpan tinjauan.")
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan tinjauan.")
       return
     }
+    setSaving(false)
     toast.success("Tinjauan jurnal tersimpan.")
     setTarget(null)
     setFeedback("")
@@ -201,33 +200,31 @@ export function LeaveDecisionList({ requests, names, loading, error, canDecide, 
     event.preventDefault()
     if (!target || !profile) return
     setSaving(true)
-    const { error: updateError } = await supabase
-      .from("leave_requests")
-      .update({
+    try {
+      await api.update("leave", target.id, {
         status: decision,
         decided_by: profile.id,
         decided_by_name: profile.full_name,
         decided_at: new Date().toISOString(),
         decision_note: note.trim() || null,
       })
-      .eq("id", target.id)
-    setSaving(false)
-
-    if (updateError) {
-      toast.error("Gagal menyimpan keputusan.")
+    } catch (err) {
+      setSaving(false)
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan keputusan.")
       return
     }
+
     toast.success(decision === "disetujui" ? "Pengajuan disetujui." : "Pengajuan ditolak.")
     if (decision === "disetujui") {
       const start = target.start_date.slice(0, 10)
       const end = target.end_date.slice(0, 10)
-      const { data: existing } = await supabase
-        .from("attendance")
-        .select("id, date")
-        .eq("student_id", target.student_id)
-        .gte("date", start)
-        .lte("date", end)
-      const covered = new Set((existing ?? []).map((row) => row.date))
+      const [existing, holidays] = await Promise.all([
+        fetchAttendance({ studentId: target.student_id, from: start, to: end }),
+        fetchHolidays(),
+      ])
+      const covered = new Set(existing.map((row) => row.date))
+      // (fix) Hari libur admin ikut dilewati — presensi tidak diwajibkan saat libur.
+      const holidaySet = new Set(holidays.map((h) => h.date.slice(0, 10)))
       const dayStatus = target.type === "sakit" ? "sakit" : "izin"
       const rows: { student_id: string; date: string; status: string; note: string }[] = []
       const cursor = new Date(`${start}T00:00:00`)
@@ -237,15 +234,20 @@ export function LeaveDecisionList({ requests, names, loading, error, canDecide, 
           cursor.getDate(),
         ).padStart(2, "0")}`
         const weekday = cursor.getDay() !== 0 && cursor.getDay() !== 6
-        if (weekday && !covered.has(iso)) {
+        if (weekday && !covered.has(iso) && !holidaySet.has(iso)) {
           rows.push({ student_id: target.student_id, date: iso, status: dayStatus, note: target.reason })
         }
         cursor.setDate(cursor.getDate() + 1)
       }
       if (rows.length > 0) {
-        await supabase.from("attendance").insert(rows)
+        try {
+          await Promise.all(rows.map((r) => api.create("attendance", r)))
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Keputusan tersimpan, tetapi presensi otomatis gagal dibuat.")
+        }
       }
     }
+    setSaving(false)
     setTarget(null)
     setNote("")
     onReload()

@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { Toaster } from "@/components/ui/sonner"
+import { OfflineBar, PwaUpdatePrompt } from "@/components/pwa"
 import { AuthProvider, useAuth } from "@/components/auth-provider"
 import { ForcePasswordDialog } from "@/components/force-password-dialog"
 import { AuthGate, FullPageLoader, RoleGate } from "@/components/guards"
@@ -115,6 +116,8 @@ export function App() {
           <Route path="*" element={<RootRedirect />} />
         </Routes>
         <Toaster position="top-right" />
+        <PwaUpdatePrompt />
+        <OfflineBar />
         <ForcePasswordDialog />
       </AuthProvider>
     </BrowserRouter>

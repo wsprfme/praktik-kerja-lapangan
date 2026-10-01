@@ -40,7 +40,7 @@ import {
   fetchSiswaDetails,
   logActivity,
 } from "@/lib/queries"
-import { callAdminUsers } from "@/lib/supabase"
+import { callAdminUsers } from "@/lib/api"
 import { PASSWORD_HINT, validatePassword } from "@/lib/password"
 import { formatDate } from "@/lib/format"
 import type { PembimbingProfile, Profile, SiswaProfile } from "@/lib/types"
@@ -88,6 +88,10 @@ export function AdminAccountsPage() {
   }
 
   const toggleActive = async (item: Profile) => {
+    if (item.id === admin?.id) {
+      toast.error("Anda tidak dapat menonaktifkan akun Anda sendiri.")
+      return
+    }
     setBusy(true)
     try {
       await callAdminUsers({ action: "set_active", user_id: item.id, is_active: !item.is_active })

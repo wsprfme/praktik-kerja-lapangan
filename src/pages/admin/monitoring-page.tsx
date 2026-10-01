@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { BookOpen, CalendarCheck, Download, Search } from "lucide-react"
+import { BookOpen, CalendarCheck, Download, FileSpreadsheet, Loader2, Search } from "lucide-react"
+import { toast } from "sonner"
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/page-states"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
@@ -7,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAsyncData } from "@/hooks/use-async-data"
-import { fetchAttendance, fetchJournals, fetchStudentOverviews } from "@/lib/queries"
+import { fetchAttendance, fetchJournals, fetchLeaveRequests, fetchStudentOverviews } from "@/lib/queries"
+import { buildDateRange, downloadWorkbook, exportAttendanceReport } from "@/lib/export-excel"
 import { AttachmentLink } from "@/components/student-detail"
 import {
   ATTENDANCE_CLASS,
@@ -25,6 +27,7 @@ export function AdminMonitoringPage() {
   const [date, setDate] = useState(todayISO())
   const [month, setMonth] = useState(todayISO().slice(0, 7))
   const [query, setQuery] = useState("")
+  const [exporting, setExporting] = useState(false)
 
   const data = useAsyncData(
     async () => {
@@ -63,6 +66,36 @@ export function AdminMonitoringPage() {
     )
   })
 
+  const exportExcel = async () => {
+    if (filtered.length === 0) {
+      toast.error("Tidak ada data untuk diekspor.")
+      return
+    }
+    setExporting(true)
+    try {
+      const range = buildDateRange("seluruh")
+      const [attendance, journals, leave] = await Promise.all([
+        fetchAttendance({ from: range.from, to: range.to }),
+        fetchJournals({ from: range.from, to: range.to }),
+        fetchLeaveRequests(),
+      ])
+      const workbook = await exportAttendanceReport({
+        students: filtered,
+        attendance: attendance.filter((a) => filtered.some((f) => f.profile.id === a.student_id)),
+        journals: journals.filter((j) => filtered.some((f) => f.profile.id === j.student_id)),
+        leaveRequests: leave.filter((l) => filtered.some((f) => f.profile.id === l.student_id)),
+        period: "Semua periode",
+        dateRange: range,
+      })
+      await downloadWorkbook(workbook, `Pemantauan_PKL_${date}.xlsx`)
+      toast.success("File Excel berhasil diunduh.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengekspor data.")
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const exportCsv = () => {
     const header = ["Nama", "Kelas", "Pembimbing", "Status Presensi", "Jam Masuk", "Jam Keluar", "Jurnal Bulan Ini"]
     const lines = filtered.map((row) => {
@@ -90,9 +123,13 @@ export function AdminMonitoringPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Presensi & Jurnal" description="Pantau kehadiran harian dan kedisiplinan jurnal seluruh siswa.">
+        <Button onClick={exportExcel} disabled={filtered.length === 0 || exporting}>
+          {exporting ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+          {exporting ? "Mengekspor..." : "Ekspor Excel"}
+        </Button>
         <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
           <Download />
-          Ekspor CSV
+          CSV
         </Button>
       </PageHeader>
 
@@ -153,7 +190,7 @@ export function AdminMonitoringPage() {
                         </div>
                         <div className="min-w-0 flex-1 text-sm">
                           <p>Pembimbing: {row.supervisor?.full_name ?? "-"}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground break-words">
                             Masuk {formatTime(attendance?.check_in_time ?? null)}
                             {attendance?.address ? ` - ${attendance.address}` : ""}
                           </p>

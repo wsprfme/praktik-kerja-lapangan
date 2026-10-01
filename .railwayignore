@@ -1,0 +1,10 @@
+# File yang tidak perlu diunggah oleh `railway up` (gaya .gitignore).
+node_modules
+dist
+.git
+.bolt
+server/node_modules
+server/uploads
+server/db.sqlite*
+server/.env
+.env
